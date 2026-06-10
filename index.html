@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>КлёвГид — умный помощник рыбака</title>
+<meta name="description" content="КлёвГид рассчитывает шанс клёва по реальной погоде, подсказывает рыбу, насадку, тактику и точки ловли на вашем водоёме.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80'%3E%F0%9F%8E%A3%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ===== Шапка ===== -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#top">
+      <svg class="brand-icon" viewBox="0 0 48 48" aria-hidden="true">
+        <path d="M6 26c6-9 16-13 26-10l8-6-2 9 2 9-8-6c-10 3-20-1-26-10" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" transform="translate(2,8) scale(.82)"/>
+        <circle cx="13" cy="26" r="1.8" fill="currentColor"/>
+        <path d="M4 38c4 2 8 2 12 0s8-2 12 0 8 2 12 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity=".55"/>
+      </svg>
+      <span class="brand-name">Клёв<em>Гид</em></span>
+    </a>
+    <nav class="steps-nav" id="stepsNav" aria-label="Шаги">
+      <button class="snav" data-goto="1"><i>1</i><span>Точка</span></button>
+      <button class="snav" data-goto="2"><i>2</i><span>Водоём</span></button>
+      <button class="snav" data-goto="3"><i>3</i><span>Условия</span></button>
+      <button class="snav" data-goto="4"><i>4</i><span>Рыба</span></button>
+      <button class="snav" data-goto="5"><i>5</i><span>Снасть</span></button>
+      <button class="snav" data-goto="6"><i>6</i><span>Прогноз</span></button>
+    </nav>
+    <div class="progress-line"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ===== Хиро ===== -->
+  <section class="hero" id="hero">
+    <div class="hero-water" aria-hidden="true">
+      <svg viewBox="0 0 1440 320" preserveAspectRatio="none" class="hero-waves">
+        <path class="wave w1" d="M0,192 C240,140 480,240 720,192 C960,144 1200,232 1440,192 L1440,320 L0,320 Z"/>
+        <path class="wave w2" d="M0,224 C260,180 520,260 780,224 C1040,188 1240,250 1440,224 L1440,320 L0,320 Z"/>
+        <path class="wave w3" d="M0,256 C300,220 600,288 900,256 C1140,231 1300,272 1440,256 L1440,320 L0,320 Z"/>
+      </svg>
+      <svg class="hero-fish" viewBox="0 0 120 60" aria-hidden="true">
+        <path d="M10 30c14-18 38-26 62-20l20-12-5 18 5 18-20-12C48 56 24 48 10 30Z" fill="currentColor"/>
+        <circle cx="28" cy="27" r="3" fill="#faf9f5"/>
+      </svg>
+    </div>
+    <div class="hero-inner">
+      <p class="hero-eyebrow reveal">Помощник рыбака · по реальным данным</p>
+      <h1 class="reveal d1">Куда кидать, на&nbsp;что ловить и&nbsp;когда клюнет&nbsp;— по&nbsp;вашей точке</h1>
+      <p class="hero-sub reveal d2">Укажите место на карте и тип водоёма. КлёвГид возьмёт реальную погоду, рассчитает температуру воды, определит активную рыбу, подберёт насадку, тактику и нарисует схему точки ловли с местом заброса.</p>
+      <div class="hero-cta reveal d3">
+        <button class="btn btn-primary btn-lg" id="startBtn">Начать расчёт</button>
+        <span class="hero-note">Бесплатно · без регистрации · реальная метеосводка</span>
+      </div>
+      <div class="hero-stats reveal d4">
+        <div class="hstat"><b data-count="15">0</b><span>видов рыбы в базе</span></div>
+        <div class="hstat"><b data-count="9">0</b><span>факторов клёва в модели</span></div>
+        <div class="hstat"><b data-count="24">0</b><span>часа прогноза активности</span></div>
+        <div class="hstat"><b data-count="7">0</b><span>типов водоёмов</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 1. Точка ===== -->
+  <section class="step-section" id="step1" data-step="1">
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge">Шаг 1</span>
+        <h2>Где будете ловить?</h2>
+        <p>Поставьте точку на карте, нажмите «Моё местоположение» или введите координаты вручную. По этой точке мы запросим реальную погоду и рассчитаем температуру воды.</p>
+      </div>
+      <div class="map-layout reveal">
+        <div class="map-wrap">
+          <div id="map" class="map" aria-label="Карта выбора точки"></div>
+          <div class="map-hint" id="mapHint">Кликните по карте, чтобы поставить точку</div>
+        </div>
+        <aside class="map-side">
+          <button class="btn btn-primary btn-block" id="geoBtn">
+            <svg viewBox="0 0 24 24" class="ic"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9 3h-2.07A7 7 0 0 0 13 5.07V3h-2v2.07A7 7 0 0 0 5.07 11H3v2h2.07A7 7 0 0 0 11 18.93V21h2v-2.07A7 7 0 0 0 18.93 13H21v-2Z" fill="currentColor"/></svg>
+            Моё местоположение
+          </button>
+          <div class="coord-grid">
+            <label>Широта <input type="number" id="latInput" step="0.0001" min="-90" max="90" placeholder="55.7558"></label>
+            <label>Долгота <input type="number" id="lonInput" step="0.0001" min="-180" max="180" placeholder="37.6173"></label>
+          </div>
+          <button class="btn btn-ghost btn-block" id="coordApplyBtn">Применить координаты</button>
+          <div class="place-card" id="placeCard" hidden>
+            <div class="place-pin">📍</div>
+            <div>
+              <b id="placeName">—</b>
+              <span id="placeCoords">—</span>
+            </div>
+          </div>
+          <p class="fineprint">Точка нужна только для расчёта — никуда не отправляется и не сохраняется на сервере.</p>
+        </aside>
+      </div>
+      <div class="step-actions reveal">
+        <button class="btn btn-primary" id="toStep2" disabled>Дальше: тип водоёма →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 2. Водоём ===== -->
+  <section class="step-section alt" id="step2" data-step="2" hidden>
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge">Шаг 2</span>
+        <h2>Что за водоём?</h2>
+        <p>От типа водоёма зависит, какая рыба здесь реально живёт, как прогревается вода и где искать точки ловли.</p>
+      </div>
+      <div class="tiles" id="waterTiles"></div>
+      <div class="subchoice reveal">
+        <h3>Что есть на месте ловли?</h3>
+        <p class="subnote">Отметьте всё, что видите вокруг — это уточнит точки заброса.</p>
+        <div class="chips" id="featureChips"></div>
+      </div>
+      <div class="subchoice reveal">
+        <h3>Глубина в месте ловли</h3>
+        <div class="seg" id="depthSeg"></div>
+      </div>
+      <div class="step-actions reveal">
+        <button class="btn btn-ghost" data-back="1">← Назад</button>
+        <button class="btn btn-primary" id="toStep3" disabled>Дальше: условия →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 3. Условия ===== -->
+  <section class="step-section" id="step3" data-step="3" hidden>
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge">Шаг 3</span>
+        <h2>Условия на месте — сейчас</h2>
+        <p id="condIntro">Реальные данные метеомодели по вашей точке. Температура воды — расчётная оценка по типу водоёма и погоде последней недели.</p>
+      </div>
+      <div class="cond-state" id="condState">
+        <div class="loader" id="condLoader"><span></span><span></span><span></span> Запрашиваю метеоданные…</div>
+      </div>
+      <div class="cond-grid" id="condGrid" hidden></div>
+      <div class="cond-extra" id="condExtra" hidden>
+        <div class="card chart-card reveal">
+          <h4>Давление, 48 часов <span class="unit">мм рт. ст.</span></h4>
+          <div id="pressureChart"></div>
+        </div>
+        <div class="card chart-card reveal">
+          <h4>Воздух и вода, 7 дней <span class="unit">°C</span></h4>
+          <div id="tempChart"></div>
+        </div>
+      </div>
+      <div class="manual-cond card" id="manualCond" hidden>
+        <h4>Нет связи с метеосервисом — введите условия вручную</h4>
+        <div class="manual-grid">
+          <label>Воздух, °C <input type="number" id="mAir" step="0.5" value="18"></label>
+          <label>Вода, °C <input type="number" id="mWater" step="0.5" value="16"></label>
+          <label>Давление, мм <input type="number" id="mPressure" step="1" value="745"></label>
+          <label>Ветер, м/с <input type="number" id="mWind" step="0.5" min="0" value="3"></label>
+          <label>Облачность, % <input type="number" id="mClouds" step="5" min="0" max="100" value="50"></label>
+          <label>Направление ветра
+            <select id="mWindDir"><option value="0">С</option><option value="45">СВ</option><option value="90">В</option><option value="135">ЮВ</option><option value="180">Ю</option><option value="225" selected>ЮЗ</option><option value="270">З</option><option value="315">СЗ</option></select>
+          </label>
+        </div>
+        <button class="btn btn-primary" id="manualApply">Использовать эти условия</button>
+      </div>
+      <div class="step-actions reveal">
+        <button class="btn btn-ghost" data-back="2">← Назад</button>
+        <button class="btn btn-ghost" id="condRefresh">⟳ Обновить</button>
+        <button class="btn btn-primary" id="toStep4" disabled>Дальше: выбор рыбы →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 4. Рыба ===== -->
+  <section class="step-section alt" id="step4" data-step="4" hidden>
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge">Шаг 4</span>
+        <h2>Кого ловим?</h2>
+        <p id="fishIntro">Показана только рыба, которая реально обитает в выбранном типе водоёма в вашем регионе. Бейдж — её активность прямо сейчас.</p>
+      </div>
+      <div class="fish-grid" id="fishGrid"></div>
+      <div class="step-actions reveal">
+        <button class="btn btn-ghost" data-back="3">← Назад</button>
+        <button class="btn btn-secondary" id="autoFish">🎯 Посоветуйте сами</button>
+        <button class="btn btn-primary" id="toStep5" disabled>Дальше: снасть →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 5. Снасть и насадки ===== -->
+  <section class="step-section" id="step5" data-step="5" hidden>
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge">Шаг 5</span>
+        <h2>Чем ловите?</h2>
+        <p>Выберите снасть — под неё подберём подачу и тактику.</p>
+      </div>
+      <div class="tiles tiles-4" id="tackleTiles"></div>
+      <div class="subchoice reveal">
+        <h3>Какие насадки и приманки у вас с собой?</h3>
+        <p class="subnote">Можно ничего не отмечать — тогда предложим идеальный набор под условия.</p>
+        <div class="chips" id="baitChips"></div>
+      </div>
+      <div class="step-actions reveal">
+        <button class="btn btn-ghost" data-back="4">← Назад</button>
+        <button class="btn btn-primary btn-lg" id="toResult" disabled>Рассчитать клёв 🎣</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 6. Результат ===== -->
+  <section class="step-section result" id="step6" data-step="6" hidden>
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge accent">Прогноз</span>
+        <h2 id="resultTitle">Ваш прогноз клёва</h2>
+        <p id="resultSubtitle"></p>
+      </div>
+
+      <div class="result-top">
+        <div class="card gauge-card reveal" id="gaugeCard"></div>
+        <div class="card factors-card reveal">
+          <h4>Из чего сложился прогноз</h4>
+          <div id="factorBars"></div>
+        </div>
+      </div>
+
+      <div class="card chart-card wide reveal">
+        <h4>Активность по часам — ближайшие сутки</h4>
+        <p class="card-note">Зелёные зоны — лучшие окна клёва. Отмечены восход и закат.</p>
+        <div id="hourlyChart"></div>
+      </div>
+
+      <div class="result-cols">
+        <div class="card baits-card reveal">
+          <h4>Насадки и приманки — что поставить</h4>
+          <div id="baitList"></div>
+        </div>
+        <div class="card tactics-card reveal">
+          <h4>Тактика на сегодня</h4>
+          <div id="tacticsList"></div>
+        </div>
+      </div>
+
+      <div class="spots-block reveal">
+        <h3 class="block-title">Схемы точек ловли</h3>
+        <p class="block-note">Типовые рабочие точки для вашего водоёма и рыбы. ✕ — куда забрасывать.</p>
+        <div class="spots-grid" id="spotsGrid"></div>
+      </div>
+
+      <div class="card summary-card reveal" id="summaryCard"></div>
+
+      <div class="step-actions reveal">
+        <button class="btn btn-ghost" data-back="5">← Изменить снасть</button>
+        <button class="btn btn-ghost" id="printBtn">🖨 Сохранить отчёт</button>
+        <button class="btn btn-secondary" id="restartBtn">Новый расчёт</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div>
+      <b>КлёвГид</b> — вероятностный прогноз, а не гарантия: рыба читает правила по-своему.
+      Температура воды — модельная оценка по погоде последних дней.
+    </div>
+    <div class="footer-fine">
+      Метеоданные: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> ·
+      Карта: <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener">OpenStreetMap</a> ·
+      Соблюдайте правила любительского рыболовства вашего региона и нормы вылова.
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

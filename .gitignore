@@ -1,0 +1,12 @@
+# ОС и редакторы
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.log
+
+# Возможные будущие зависимости
+node_modules/
+dist/
+
+# Локальное
+*.local

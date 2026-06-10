@@ -1,0 +1,2951 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>КлёвГид — умный помощник рыбака (автономная версия)</title>
+<meta name="description" content="КлёвГид рассчитывает шанс клёва по реальной погоде, подсказывает рыбу, насадку, тактику и точки ловли на вашем водоёме.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80'%3E%F0%9F%8E%A3%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* ============================================================
+   КлёвГид — дизайн-система
+   Палитра и стиль вдохновлены артефактами Claude:
+   тёплая слоновая кость, терракотовый акцент, серифные заголовки,
+   мягкие карточки, плавные осмысленные анимации.
+   ============================================================ */
+
+:root {
+  /* Палитра */
+  --bg: #faf9f5;
+  --bg-alt: #f3f1e9;
+  --surface: #ffffff;
+  --surface-tint: #fcfbf8;
+  --ink: #21201c;
+  --ink-2: #5c594f;
+  --ink-3: #8f8b7c;
+  --line: #e7e4d8;
+  --line-strong: #d8d4c4;
+
+  --accent: #d97757;
+  --accent-deep: #bb5d3f;
+  --accent-soft: #f7e4dc;
+  --accent-soft-2: #fbf0eb;
+
+  --water: #2e7d9a;
+  --water-deep: #1b5a73;
+  --water-soft: #e3eff4;
+
+  --good: #4f8a3d;
+  --good-soft: #e8f1e2;
+  --warn: #c08a2d;
+  --warn-soft: #f7eedb;
+  --bad: #b34a3c;
+  --bad-soft: #f6e3e0;
+
+  /* Типографика */
+  --font-display: "Lora", Georgia, "Times New Roman", serif;
+  --font-ui: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Геометрия */
+  --r-lg: 20px;
+  --r-md: 14px;
+  --r-sm: 9px;
+  --shadow-1: 0 1px 2px rgba(33,32,28,.05), 0 4px 14px rgba(33,32,28,.06);
+  --shadow-2: 0 2px 6px rgba(33,32,28,.07), 0 14px 34px rgba(33,32,28,.10);
+  --maxw: 1120px;
+
+  --ease: cubic-bezier(.22,.8,.36,1);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -.01em; }
+h1 { font-size: clamp(2rem, 4.2vw, 3.1rem); line-height: 1.12; margin: .4em 0; }
+h2 { font-size: clamp(1.5rem, 2.6vw, 2.05rem); line-height: 1.18; margin: .3em 0 .35em; }
+h3 { font-size: 1.22rem; margin: 0 0 .4em; }
+h4 { font-family: var(--font-ui); font-size: .95rem; font-weight: 600; margin: 0 0 .8em; color: var(--ink); }
+p  { margin: .4em 0; color: var(--ink-2); }
+a  { color: var(--accent-deep); text-decoration: none; }
+a:hover { text-decoration: underline; }
+em { font-style: normal; }
+button { font-family: var(--font-ui); }
+.container { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+/* ============ Анимации появления ============ */
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+.reveal.in { opacity: 1; transform: none; }
+.reveal.d1 { transition-delay: .08s; }
+.reveal.d2 { transition-delay: .16s; }
+.reveal.d3 { transition-delay: .24s; }
+.reveal.d4 { transition-delay: .34s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  html { scroll-behavior: auto; }
+}
+
+/* ============ Шапка ============ */
+.topbar {
+  position: sticky; top: 0; z-index: 1000;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-inner { max-width: var(--maxw); margin: 0 auto; padding: 10px 22px 0; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; position: relative; }
+.brand { display: flex; align-items: center; gap: 9px; color: var(--ink); font-weight: 700; font-size: 1.12rem; padding-bottom: 10px; }
+.brand:hover { text-decoration: none; }
+.brand-icon { width: 30px; height: 30px; color: var(--accent); }
+.brand-name em { color: var(--accent-deep); font-family: var(--font-display); font-style: italic; }
+.steps-nav { display: flex; gap: 2px; margin-left: auto; overflow-x: auto; }
+.snav {
+  display: flex; align-items: center; gap: 7px;
+  background: none; border: 0; cursor: pointer;
+  padding: 9px 12px 17px; color: var(--ink-3); font-size: .83rem; font-weight: 500;
+  border-bottom: 2px solid transparent; transition: color .25s, border-color .25s;
+  white-space: nowrap;
+}
+.snav i {
+  font-style: normal; display: grid; place-items: center;
+  width: 21px; height: 21px; border-radius: 50%;
+  background: var(--bg-alt); color: var(--ink-3); font-size: .72rem; font-weight: 700;
+  transition: background .25s, color .25s;
+}
+.snav:hover { color: var(--ink); }
+.snav.active { color: var(--accent-deep); border-color: var(--accent); }
+.snav.active i { background: var(--accent); color: #fff; }
+.snav.done i { background: var(--good-soft); color: var(--good); }
+.snav:disabled { opacity: .45; cursor: not-allowed; }
+.progress-line { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: transparent; }
+.progress-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-deep)); transition: width .6s var(--ease); }
+
+/* ============ Хиро ============ */
+.hero { position: relative; overflow: hidden; padding: 84px 0 130px; }
+.hero-inner { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; position: relative; z-index: 2; max-width: 820px; }
+.hero-eyebrow {
+  display: inline-block; font-size: .8rem; font-weight: 600; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--accent-deep); background: var(--accent-soft-2); border: 1px solid var(--accent-soft);
+  padding: 5px 13px; border-radius: 999px;
+}
+.hero-sub { font-size: 1.13rem; max-width: 620px; }
+.hero-cta { display: flex; align-items: center; gap: 16px; margin-top: 22px; flex-wrap: wrap; }
+.hero-note { font-size: .85rem; color: var(--ink-3); }
+.hero-stats { display: flex; gap: 36px; margin-top: 44px; flex-wrap: wrap; }
+.hstat b { display: block; font-family: var(--font-display); font-size: 2rem; color: var(--accent-deep); line-height: 1; }
+.hstat span { font-size: .82rem; color: var(--ink-3); }
+
+.hero-water { position: absolute; inset: auto 0 0 0; height: 230px; z-index: 1; pointer-events: none; color: var(--water); }
+.hero-waves { width: 100%; height: 100%; }
+.wave { fill: var(--water); }
+.wave.w1 { opacity: .10; animation: waveShift 13s ease-in-out infinite alternate; }
+.wave.w2 { opacity: .14; animation: waveShift 9s ease-in-out infinite alternate-reverse; }
+.wave.w3 { opacity: .20; animation: waveShift 7s ease-in-out infinite alternate; }
+@keyframes waveShift { from { transform: translateX(0); } to { transform: translateX(-46px); } }
+.hero-fish {
+  position: absolute; bottom: 36px; width: 86px; color: var(--water-deep); opacity: .5;
+  animation: fishSwim 19s linear infinite;
+}
+@keyframes fishSwim {
+  0%   { left: -10%; transform: translateY(0) scaleX(1); }
+  46%  { transform: translateY(-14px) scaleX(1); }
+  50%  { left: 104%; transform: translateY(-10px) scaleX(1); }
+  51%  { transform: translateY(-10px) scaleX(-1); }
+  96%  { transform: translateY(6px) scaleX(-1); }
+  100% { left: -10%; transform: translateY(0) scaleX(-1); }
+}
+
+/* ============ Кнопки ============ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  border-radius: var(--r-md); border: 1px solid transparent;
+  padding: 11px 22px; font-size: .95rem; font-weight: 600; cursor: pointer;
+  transition: transform .2s var(--ease), box-shadow .25s, background .25s, color .25s, border-color .25s, opacity .25s;
+}
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.btn-primary { background: var(--accent); color: #fff; box-shadow: 0 3px 10px rgba(217,119,87,.3); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-deep); box-shadow: 0 5px 18px rgba(217,119,87,.4); transform: translateY(-1px); }
+.btn-secondary { background: var(--ink); color: var(--bg); }
+.btn-secondary:hover:not(:disabled) { background: #000; transform: translateY(-1px); }
+.btn-ghost { background: var(--surface); color: var(--ink-2); border-color: var(--line-strong); }
+.btn-ghost:hover:not(:disabled) { border-color: var(--ink-3); color: var(--ink); }
+.btn-lg { padding: 15px 30px; font-size: 1.06rem; border-radius: 16px; }
+.btn-block { width: 100%; }
+.ic { width: 18px; height: 18px; }
+
+/* ============ Секции шагов ============ */
+.step-section { padding: 72px 0 84px; }
+.step-section.alt { background: linear-gradient(var(--bg-alt), var(--bg)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.step-section[hidden] { display: none; }
+.step-head { max-width: 680px; margin-bottom: 34px; }
+.step-badge {
+  display: inline-block; font-size: .74rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--water-deep); background: var(--water-soft); padding: 4px 12px; border-radius: 999px; margin-bottom: 12px;
+}
+.step-badge.accent { color: var(--accent-deep); background: var(--accent-soft); }
+.step-actions { display: flex; gap: 12px; margin-top: 38px; flex-wrap: wrap; align-items: center; }
+
+/* ============ Карточки ============ */
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: 22px; box-shadow: var(--shadow-1);
+}
+.card-note { font-size: .84rem; color: var(--ink-3); margin: -6px 0 14px; }
+
+/* ============ Шаг 1 — карта ============ */
+.map-layout { display: grid; grid-template-columns: 1.7fr 1fr; gap: 22px; align-items: start; }
+.map-wrap { position: relative; border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--line-strong); box-shadow: var(--shadow-2); }
+.map { height: 430px; background: var(--water-soft); }
+.map-hint {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  background: rgba(33,32,28,.82); color: #fff; font-size: .8rem; padding: 7px 15px; border-radius: 999px;
+  pointer-events: none; z-index: 800; transition: opacity .4s; white-space: nowrap;
+}
+.map-hint.hide { opacity: 0; }
+.map-side { display: flex; flex-direction: column; gap: 14px; }
+.coord-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.coord-grid label, .manual-grid label { display: flex; flex-direction: column; gap: 5px; font-size: .8rem; font-weight: 600; color: var(--ink-2); }
+input[type="number"], select {
+  border: 1px solid var(--line-strong); border-radius: var(--r-sm); padding: 9px 11px;
+  font-size: .95rem; font-family: var(--font-ui); background: var(--surface); color: var(--ink);
+  transition: border-color .2s, box-shadow .2s; width: 100%;
+}
+input[type="number"]:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.place-card {
+  display: flex; gap: 12px; align-items: center; background: var(--good-soft);
+  border: 1px solid color-mix(in srgb, var(--good) 25%, transparent);
+  border-radius: var(--r-md); padding: 13px 15px;
+  animation: popIn .45s var(--ease);
+}
+.place-pin { font-size: 1.4rem; }
+.place-card b { display: block; font-size: .95rem; }
+.place-card span { font-size: .8rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+@keyframes popIn { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: scale(1); } }
+.fineprint { font-size: .76rem; color: var(--ink-3); }
+.cast-marker { filter: drop-shadow(0 3px 5px rgba(0,0,0,.35)); }
+
+/* ============ Плитки выбора ============ */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)); gap: 14px; }
+.tiles-4 { grid-template-columns: repeat(auto-fill, minmax(225px, 1fr)); }
+.tile {
+  position: relative; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--r-lg);
+  padding: 18px; transition: transform .25s var(--ease), box-shadow .3s, border-color .25s, background .25s;
+}
+.tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); border-color: var(--line-strong); }
+.tile.selected { border-color: var(--accent); background: var(--accent-soft-2); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-1); }
+.tile.selected::after {
+  content: "✓"; position: absolute; top: 12px; right: 12px;
+  width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff;
+  display: grid; place-items: center; font-size: .8rem; font-weight: 700;
+  animation: popIn .3s var(--ease);
+}
+.tile-icon { width: 54px; height: 54px; margin-bottom: 10px; display: block; }
+.tile b { display: block; font-size: .98rem; margin-bottom: 3px; }
+.tile span { font-size: .8rem; color: var(--ink-3); line-height: 1.4; display: block; }
+
+/* ============ Чипы ============ */
+.subchoice { margin-top: 34px; }
+.subnote { font-size: .85rem; color: var(--ink-3); margin: -2px 0 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 9px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--surface); border: 1.5px solid var(--line-strong); border-radius: 999px;
+  padding: 8px 16px; font-size: .88rem; font-weight: 500; color: var(--ink-2); cursor: pointer;
+  transition: all .22s var(--ease);
+}
+.chip:hover { border-color: var(--ink-3); transform: translateY(-1px); }
+.chip.selected { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip .em { font-size: 1.05em; }
+
+/* ============ Сегменты ============ */
+.seg { display: inline-flex; background: var(--surface); border: 1.5px solid var(--line-strong); border-radius: var(--r-md); padding: 4px; gap: 4px; flex-wrap: wrap; }
+.seg button {
+  border: 0; background: none; padding: 9px 18px; border-radius: 10px; cursor: pointer;
+  font-size: .88rem; font-weight: 600; color: var(--ink-3); transition: all .22s;
+}
+.seg button.selected { background: var(--water); color: #fff; box-shadow: 0 2px 8px rgba(46,125,154,.35); }
+
+/* ============ Шаг 3 — условия ============ */
+.loader { display: flex; align-items: center; gap: 5px; color: var(--ink-3); font-size: .95rem; padding: 30px 0; }
+.loader span { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); animation: bounce 1s infinite; }
+.loader span:nth-child(2) { animation-delay: .15s; }
+.loader span:nth-child(3) { animation-delay: .3s; margin-right: 8px; }
+@keyframes bounce { 0%, 100% { transform: translateY(0); opacity: .5; } 50% { transform: translateY(-7px); opacity: 1; } }
+
+.cond-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 14px; }
+.cond-card { position: relative; overflow: hidden; animation: condIn .6s var(--ease) backwards; }
+.cond-card:nth-child(2) { animation-delay: .06s; } .cond-card:nth-child(3) { animation-delay: .12s; }
+.cond-card:nth-child(4) { animation-delay: .18s; } .cond-card:nth-child(5) { animation-delay: .24s; }
+.cond-card:nth-child(6) { animation-delay: .3s; } .cond-card:nth-child(7) { animation-delay: .36s; }
+@keyframes condIn { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
+.cond-label { display: flex; align-items: center; gap: 8px; font-size: .8rem; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .05em; }
+.cond-label svg { width: 17px; height: 17px; color: var(--water); }
+.cond-value { font-family: var(--font-display); font-size: 2.1rem; line-height: 1.1; margin: 8px 0 2px; font-variant-numeric: tabular-nums; }
+.cond-value small { font-size: 1.05rem; color: var(--ink-3); font-family: var(--font-ui); }
+.cond-sub { font-size: .82rem; color: var(--ink-3); }
+.cond-tag { display: inline-block; margin-top: 9px; font-size: .74rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+.cond-tag.good { background: var(--good-soft); color: var(--good); }
+.cond-tag.warn { background: var(--warn-soft); color: var(--warn); }
+.cond-tag.bad  { background: var(--bad-soft); color: var(--bad); }
+.cond-tag.info { background: var(--water-soft); color: var(--water-deep); }
+
+.cond-extra { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+.chart-card h4 .unit { color: var(--ink-3); font-weight: 500; font-size: .8rem; }
+.chart-card.wide { margin: 14px 0; }
+
+.manual-cond { margin-top: 18px; border-color: color-mix(in srgb, var(--warn) 35%, transparent); background: var(--warn-soft); }
+.manual-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 14px 0 18px; }
+
+/* ============ Шаг 4 — рыба ============ */
+.fish-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); gap: 14px; }
+.fish-card {
+  position: relative; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--r-lg);
+  padding: 18px; transition: transform .25s var(--ease), box-shadow .3s, border-color .25s;
+  animation: condIn .55s var(--ease) backwards;
+}
+.fish-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); }
+.fish-card.selected { border-color: var(--accent); background: var(--accent-soft-2); box-shadow: 0 0 0 3px var(--accent-soft); }
+.fish-card.selected::after {
+  content: "✓"; position: absolute; top: 12px; right: 12px; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent); color: #fff; display: grid; place-items: center; font-size: .8rem; font-weight: 700;
+  animation: popIn .3s var(--ease);
+}
+.fish-art { height: 64px; display: flex; align-items: center; margin-bottom: 8px; }
+.fish-art svg { height: 100%; max-width: 100%; }
+.fish-card b { font-size: 1.02rem; display: block; }
+.fish-card .latin { font-size: .73rem; color: var(--ink-3); font-style: italic; display: block; margin-bottom: 8px; }
+.fish-why { font-size: .8rem; color: var(--ink-2); margin-top: 8px; line-height: 1.45; }
+.act-badge { display: inline-flex; align-items: center; gap: 6px; font-size: .76rem; font-weight: 700; padding: 4px 11px; border-radius: 999px; }
+.act-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: blink 1.8s infinite; }
+@keyframes blink { 50% { opacity: .35; } }
+.act-high { background: var(--good-soft); color: var(--good); }
+.act-mid  { background: var(--warn-soft); color: var(--warn); }
+.act-low  { background: var(--bad-soft); color: var(--bad); }
+
+/* ============ Результат ============ */
+.result-top { display: grid; grid-template-columns: 1fr 1.25fr; gap: 14px; margin-bottom: 14px; }
+.gauge-card { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 28px 22px; }
+.gauge-verdict { font-family: var(--font-display); font-size: 1.3rem; margin-top: 4px; }
+.gauge-phrase { font-size: .88rem; color: var(--ink-2); margin-top: 6px; max-width: 280px; }
+
+.fbar { margin-bottom: 13px; }
+.fbar-head { display: flex; justify-content: space-between; font-size: .84rem; margin-bottom: 5px; }
+.fbar-head b { font-weight: 600; color: var(--ink); }
+.fbar-head span { font-variant-numeric: tabular-nums; font-weight: 700; }
+.fbar-track { height: 8px; border-radius: 99px; background: var(--bg-alt); overflow: hidden; }
+.fbar-fill { height: 100%; border-radius: 99px; width: 0; transition: width 1s var(--ease); }
+.fbar-note { font-size: .76rem; color: var(--ink-3); margin-top: 4px; }
+
+.result-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+
+.bait-item { display: flex; gap: 13px; align-items: flex-start; padding: 13px 0; border-bottom: 1px dashed var(--line); }
+.bait-item:last-child { border-bottom: 0; }
+.bait-rank {
+  flex: 0 0 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 800; font-size: .9rem; background: var(--bg-alt); color: var(--ink-3);
+}
+.bait-item.top .bait-rank { background: var(--accent); color: #fff; box-shadow: 0 3px 9px rgba(217,119,87,.4); }
+.bait-item b { display: block; font-size: .96rem; }
+.bait-item b .have { font-size: .7rem; font-weight: 700; color: var(--good); background: var(--good-soft); border-radius: 99px; padding: 2px 8px; margin-left: 7px; vertical-align: 1px; }
+.bait-item p { font-size: .82rem; margin: 3px 0 0; }
+
+.tactic-item { display: flex; gap: 13px; padding: 13px 0; border-bottom: 1px dashed var(--line); }
+.tactic-item:last-child { border-bottom: 0; }
+.tactic-icon { flex: 0 0 38px; height: 38px; border-radius: 12px; background: var(--water-soft); display: grid; place-items: center; font-size: 1.15rem; }
+.tactic-item b { display: block; font-size: .9rem; margin-bottom: 2px; }
+.tactic-item p { font-size: .85rem; margin: 0; }
+
+/* ============ Схемы точек ============ */
+.spots-block { margin: 34px 0 14px; }
+.block-title { font-size: 1.45rem; }
+.block-note { font-size: .88rem; color: var(--ink-3); margin: -4px 0 18px; }
+.spots-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 16px; }
+.spot-card { overflow: hidden; padding: 0; }
+.spot-svg-wrap { background: linear-gradient(160deg, #dceaf0, #c5dde7); display: block; }
+.spot-svg-wrap svg { display: block; width: 100%; height: auto; }
+.spot-body { padding: 16px 18px 18px; }
+.spot-body b { font-size: 1rem; display: block; margin-bottom: 4px; }
+.spot-body p { font-size: .84rem; margin: 0; }
+.spot-meta { display: flex; gap: 14px; margin-top: 11px; flex-wrap: wrap; }
+.spot-meta span { font-size: .76rem; font-weight: 600; color: var(--water-deep); background: var(--water-soft); padding: 3px 11px; border-radius: 999px; }
+
+/* SVG-анимации схем */
+.sway { transform-box: fill-box; transform-origin: bottom center; animation: sway 3.6s ease-in-out infinite alternate; }
+.sway.s2 { animation-duration: 4.4s; animation-delay: .6s; }
+.sway.s3 { animation-duration: 3s; animation-delay: 1.1s; }
+@keyframes sway { from { transform: rotate(-4deg); } to { transform: rotate(4.5deg); } }
+.cast-pulse { transform-box: fill-box; transform-origin: center; animation: castPulse 2s var(--ease) infinite; }
+@keyframes castPulse { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(1.9); opacity: 0; } }
+.ripple-drift { animation: rippleDrift 6s linear infinite; }
+@keyframes rippleDrift { from { transform: translateX(0); } to { transform: translateX(26px); } }
+.flow-dash { stroke-dasharray: 7 9; animation: flowDash 1.6s linear infinite; }
+@keyframes flowDash { to { stroke-dashoffset: -32; } }
+.fish-bob { transform-box: fill-box; transform-origin: center; animation: fishBob 4.5s ease-in-out infinite alternate; }
+@keyframes fishBob { from { transform: translateY(-3px); } to { transform: translateY(3px); } }
+
+/* ============ Сводка ============ */
+.summary-card { background: linear-gradient(135deg, #fdf9f7, var(--accent-soft-2)); border-color: var(--accent-soft); }
+.summary-card h4 { font-family: var(--font-display); font-size: 1.2rem; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-top: 14px; }
+.sum-item b { display: block; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 600; margin-bottom: 3px; }
+.sum-item span { font-size: .95rem; font-weight: 600; }
+
+/* ============ Графики (общее) ============ */
+.axis-text { font-size: 10.5px; fill: var(--ink-3); font-family: var(--font-ui); }
+.grid-line { stroke: var(--line); stroke-width: 1; }
+.chart-line { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.draw-line { stroke-dasharray: var(--len); stroke-dashoffset: var(--len); animation: drawLine 1.6s var(--ease) forwards; }
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
+.bar-grow { transform-box: fill-box; transform-origin: bottom; transform: scaleY(0); animation: barGrow .8s var(--ease) forwards; }
+@keyframes barGrow { to { transform: scaleY(1); } }
+.fade-late { opacity: 0; animation: fadeIn .8s .9s forwards; }
+@keyframes fadeIn { to { opacity: 1; } }
+.gauge-num { font-family: var(--font-display); font-weight: 600; fill: var(--ink); }
+.compass-needle { transform-box: fill-box; transform-origin: center; transition: transform 1.4s var(--ease); }
+
+/* ============ Подвал ============ */
+.footer { border-top: 1px solid var(--line); background: var(--bg-alt); padding: 30px 0 38px; margin-top: 40px; }
+.footer-inner { display: flex; flex-direction: column; gap: 9px; font-size: .86rem; color: var(--ink-2); }
+.footer-fine { font-size: .78rem; color: var(--ink-3); }
+
+/* ============ Печать ============ */
+@media print {
+  .topbar, .hero, .step-actions, .footer, .map-hint { display: none !important; }
+  .step-section[hidden] { display: none !important; }
+  .step-section { padding: 10px 0; }
+  body { background: #fff; }
+  .card { box-shadow: none; break-inside: avoid; }
+}
+
+/* ============ Адаптив ============ */
+@media (max-width: 900px) {
+  .map-layout, .result-top, .result-cols, .cond-extra { grid-template-columns: 1fr; }
+  .map { height: 330px; }
+  .steps-nav span { display: none; }
+  .steps-nav { gap: 0; }
+  .hero { padding: 56px 0 110px; }
+  .hero-stats { gap: 22px; }
+}
+@media (max-width: 540px) {
+  .tiles, .tiles-4, .fish-grid, .cond-grid { grid-template-columns: 1fr 1fr; }
+  .container { padding: 0 16px; }
+  .step-section { padding: 48px 0 60px; }
+}
+@media (max-width: 400px) {
+  .tiles, .tiles-4, .fish-grid, .cond-grid { grid-template-columns: 1fr; }
+}
+
+</style>
+</head>
+<body>
+
+<!-- ===== Шапка ===== -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#top">
+      <svg class="brand-icon" viewBox="0 0 48 48" aria-hidden="true">
+        <path d="M6 26c6-9 16-13 26-10l8-6-2 9 2 9-8-6c-10 3-20-1-26-10" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" transform="translate(2,8) scale(.82)"/>
+        <circle cx="13" cy="26" r="1.8" fill="currentColor"/>
+        <path d="M4 38c4 2 8 2 12 0s8-2 12 0 8 2 12 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity=".55"/>
+      </svg>
+      <span class="brand-name">Клёв<em>Гид</em></span>
+    </a>
+    <nav class="steps-nav" id="stepsNav" aria-label="Шаги">
+      <button class="snav" data-goto="1"><i>1</i><span>Точка</span></button>
+      <button class="snav" data-goto="2"><i>2</i><span>Водоём</span></button>
+      <button class="snav" data-goto="3"><i>3</i><span>Условия</span></button>
+      <button class="snav" data-goto="4"><i>4</i><span>Рыба</span></button>
+      <button class="snav" data-goto="5"><i>5</i><span>Снасть</span></button>
+      <button class="snav" data-goto="6"><i>6</i><span>Прогноз</span></button>
+    </nav>
+    <div class="progress-line"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ===== Хиро ===== -->
+  <section class="hero" id="hero">
+    <div class="hero-water" aria-hidden="true">
+      <svg viewBox="0 0 1440 320" preserveAspectRatio="none" class="hero-waves">
+        <path class="wave w1" d="M0,192 C240,140 480,240 720,192 C960,144 1200,232 1440,192 L1440,320 L0,320 Z"/>
+        <path class="wave w2" d="M0,224 C260,180 520,260 780,224 C1040,188 1240,250 1440,224 L1440,320 L0,320 Z"/>
+        <path class="wave w3" d="M0,256 C300,220 600,288 900,256 C1140,231 1300,272 1440,256 L1440,320 L0,320 Z"/>
+      </svg>
+      <svg class="hero-fish" viewBox="0 0 120 60" aria-hidden="true">
+        <path d="M10 30c14-18 38-26 62-20l20-12-5 18 5 18-20-12C48 56 24 48 10 30Z" fill="currentColor"/>
+        <circle cx="28" cy="27" r="3" fill="#faf9f5"/>
+      </svg>
+    </div>
+    <div class="hero-inner">
+      <p class="hero-eyebrow reveal">Помощник рыбака · по реальным данным</p>
+      <h1 class="reveal d1">Куда кидать, на&nbsp;что ловить и&nbsp;когда клюнет&nbsp;— по&nbsp;вашей точке</h1>
+      <p class="hero-sub reveal d2">Укажите место на карте и тип водоёма. КлёвГид возьмёт реальную погоду, рассчитает температуру воды, определит активную рыбу, подберёт насадку, тактику и нарисует схему точки ловли с местом заброса.</p>
+      <div class="hero-cta reveal d3">
+        <button class="btn btn-primary btn-lg" id="startBtn">Начать расчёт</button>
+        <span class="hero-note">Бесплатно · без регистрации · реальная метеосводка</span>
+      </div>
+      <div class="hero-stats reveal d4">
+        <div class="hstat"><b data-count="15">0</b><span>видов рыбы в базе</span></div>
+        <div class="hstat"><b data-count="9">0</b><span>факторов клёва в модели</span></div>
+        <div class="hstat"><b data-count="24">0</b><span>часа прогноза активности</span></div>
+        <div class="hstat"><b data-count="7">0</b><span>типов водоёмов</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 1. Точка ===== -->
+  <section class="step-section" id="step1" data-step="1">
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge">Шаг 1</span>
+        <h2>Где будете ловить?</h2>
+        <p>Поставьте точку на карте, нажмите «Моё местоположение» или введите координаты вручную. По этой точке мы запросим реальную погоду и рассчитаем температуру воды.</p>
+      </div>
+      <div class="map-layout reveal">
+        <div class="map-wrap">
+          <div id="map" class="map" aria-label="Карта выбора точки"></div>
+          <div class="map-hint" id="mapHint">Кликните по карте, чтобы поставить точку</div>
+        </div>
+        <aside class="map-side">
+          <button class="btn btn-primary btn-block" id="geoBtn">
+            <svg viewBox="0 0 24 24" class="ic"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9 3h-2.07A7 7 0 0 0 13 5.07V3h-2v2.07A7 7 0 0 0 5.07 11H3v2h2.07A7 7 0 0 0 11 18.93V21h2v-2.07A7 7 0 0 0 18.93 13H21v-2Z" fill="currentColor"/></svg>
+            Моё местоположение
+          </button>
+          <div class="coord-grid">
+            <label>Широта <input type="number" id="latInput" step="0.0001" min="-90" max="90" placeholder="55.7558"></label>
+            <label>Долгота <input type="number" id="lonInput" step="0.0001" min="-180" max="180" placeholder="37.6173"></label>
+          </div>
+          <button class="btn btn-ghost btn-block" id="coordApplyBtn">Применить координаты</button>
+          <div class="place-card" id="placeCard" hidden>
+            <div class="place-pin">📍</div>
+            <div>
+              <b id="placeName">—</b>
+              <span id="placeCoords">—</span>
+            </div>
+          </div>
+          <p class="fineprint">Точка нужна только для расчёта — никуда не отправляется и не сохраняется на сервере.</p>
+        </aside>
+      </div>
+      <div class="step-actions reveal">
+        <button class="btn btn-primary" id="toStep2" disabled>Дальше: тип водоёма →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 2. Водоём ===== -->
+  <section class="step-section alt" id="step2" data-step="2" hidden>
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge">Шаг 2</span>
+        <h2>Что за водоём?</h2>
+        <p>От типа водоёма зависит, какая рыба здесь реально живёт, как прогревается вода и где искать точки ловли.</p>
+      </div>
+      <div class="tiles" id="waterTiles"></div>
+      <div class="subchoice reveal">
+        <h3>Что есть на месте ловли?</h3>
+        <p class="subnote">Отметьте всё, что видите вокруг — это уточнит точки заброса.</p>
+        <div class="chips" id="featureChips"></div>
+      </div>
+      <div class="subchoice reveal">
+        <h3>Глубина в месте ловли</h3>
+        <div class="seg" id="depthSeg"></div>
+      </div>
+      <div class="step-actions reveal">
+        <button class="btn btn-ghost" data-back="1">← Назад</button>
+        <button class="btn btn-primary" id="toStep3" disabled>Дальше: условия →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 3. Условия ===== -->
+  <section class="step-section" id="step3" data-step="3" hidden>
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge">Шаг 3</span>
+        <h2>Условия на месте — сейчас</h2>
+        <p id="condIntro">Реальные данные метеомодели по вашей точке. Температура воды — расчётная оценка по типу водоёма и погоде последней недели.</p>
+      </div>
+      <div class="cond-state" id="condState">
+        <div class="loader" id="condLoader"><span></span><span></span><span></span> Запрашиваю метеоданные…</div>
+      </div>
+      <div class="cond-grid" id="condGrid" hidden></div>
+      <div class="cond-extra" id="condExtra" hidden>
+        <div class="card chart-card reveal">
+          <h4>Давление, 48 часов <span class="unit">мм рт. ст.</span></h4>
+          <div id="pressureChart"></div>
+        </div>
+        <div class="card chart-card reveal">
+          <h4>Воздух и вода, 7 дней <span class="unit">°C</span></h4>
+          <div id="tempChart"></div>
+        </div>
+      </div>
+      <div class="manual-cond card" id="manualCond" hidden>
+        <h4>Нет связи с метеосервисом — введите условия вручную</h4>
+        <div class="manual-grid">
+          <label>Воздух, °C <input type="number" id="mAir" step="0.5" value="18"></label>
+          <label>Вода, °C <input type="number" id="mWater" step="0.5" value="16"></label>
+          <label>Давление, мм <input type="number" id="mPressure" step="1" value="745"></label>
+          <label>Ветер, м/с <input type="number" id="mWind" step="0.5" min="0" value="3"></label>
+          <label>Облачность, % <input type="number" id="mClouds" step="5" min="0" max="100" value="50"></label>
+          <label>Направление ветра
+            <select id="mWindDir"><option value="0">С</option><option value="45">СВ</option><option value="90">В</option><option value="135">ЮВ</option><option value="180">Ю</option><option value="225" selected>ЮЗ</option><option value="270">З</option><option value="315">СЗ</option></select>
+          </label>
+        </div>
+        <button class="btn btn-primary" id="manualApply">Использовать эти условия</button>
+      </div>
+      <div class="step-actions reveal">
+        <button class="btn btn-ghost" data-back="2">← Назад</button>
+        <button class="btn btn-ghost" id="condRefresh">⟳ Обновить</button>
+        <button class="btn btn-primary" id="toStep4" disabled>Дальше: выбор рыбы →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 4. Рыба ===== -->
+  <section class="step-section alt" id="step4" data-step="4" hidden>
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge">Шаг 4</span>
+        <h2>Кого ловим?</h2>
+        <p id="fishIntro">Показана только рыба, которая реально обитает в выбранном типе водоёма в вашем регионе. Бейдж — её активность прямо сейчас.</p>
+      </div>
+      <div class="fish-grid" id="fishGrid"></div>
+      <div class="step-actions reveal">
+        <button class="btn btn-ghost" data-back="3">← Назад</button>
+        <button class="btn btn-secondary" id="autoFish">🎯 Посоветуйте сами</button>
+        <button class="btn btn-primary" id="toStep5" disabled>Дальше: снасть →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 5. Снасть и насадки ===== -->
+  <section class="step-section" id="step5" data-step="5" hidden>
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge">Шаг 5</span>
+        <h2>Чем ловите?</h2>
+        <p>Выберите снасть — под неё подберём подачу и тактику.</p>
+      </div>
+      <div class="tiles tiles-4" id="tackleTiles"></div>
+      <div class="subchoice reveal">
+        <h3>Какие насадки и приманки у вас с собой?</h3>
+        <p class="subnote">Можно ничего не отмечать — тогда предложим идеальный набор под условия.</p>
+        <div class="chips" id="baitChips"></div>
+      </div>
+      <div class="step-actions reveal">
+        <button class="btn btn-ghost" data-back="4">← Назад</button>
+        <button class="btn btn-primary btn-lg" id="toResult" disabled>Рассчитать клёв 🎣</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Шаг 6. Результат ===== -->
+  <section class="step-section result" id="step6" data-step="6" hidden>
+    <div class="container">
+      <div class="step-head reveal">
+        <span class="step-badge accent">Прогноз</span>
+        <h2 id="resultTitle">Ваш прогноз клёва</h2>
+        <p id="resultSubtitle"></p>
+      </div>
+
+      <div class="result-top">
+        <div class="card gauge-card reveal" id="gaugeCard"></div>
+        <div class="card factors-card reveal">
+          <h4>Из чего сложился прогноз</h4>
+          <div id="factorBars"></div>
+        </div>
+      </div>
+
+      <div class="card chart-card wide reveal">
+        <h4>Активность по часам — ближайшие сутки</h4>
+        <p class="card-note">Зелёные зоны — лучшие окна клёва. Отмечены восход и закат.</p>
+        <div id="hourlyChart"></div>
+      </div>
+
+      <div class="result-cols">
+        <div class="card baits-card reveal">
+          <h4>Насадки и приманки — что поставить</h4>
+          <div id="baitList"></div>
+        </div>
+        <div class="card tactics-card reveal">
+          <h4>Тактика на сегодня</h4>
+          <div id="tacticsList"></div>
+        </div>
+      </div>
+
+      <div class="spots-block reveal">
+        <h3 class="block-title">Схемы точек ловли</h3>
+        <p class="block-note">Типовые рабочие точки для вашего водоёма и рыбы. ✕ — куда забрасывать.</p>
+        <div class="spots-grid" id="spotsGrid"></div>
+      </div>
+
+      <div class="card summary-card reveal" id="summaryCard"></div>
+
+      <div class="step-actions reveal">
+        <button class="btn btn-ghost" data-back="5">← Изменить снасть</button>
+        <button class="btn btn-ghost" id="printBtn">🖨 Сохранить отчёт</button>
+        <button class="btn btn-secondary" id="restartBtn">Новый расчёт</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div>
+      <b>КлёвГид</b> — вероятностный прогноз, а не гарантия: рыба читает правила по-своему.
+      Температура воды — модельная оценка по погоде последних дней.
+    </div>
+    <div class="footer-fine">
+      Метеоданные: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> ·
+      Карта: <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener">OpenStreetMap</a> ·
+      Соблюдайте правила любительского рыболовства вашего региона и нормы вылова.
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function(){
+
+/* ===== fishdb.js ===== */
+/* ============================================================
+   КлёвГид — база знаний: водоёмы, насадки, снасти, рыбы.
+   Данные откалиброваны под среднюю полосу России/СНГ,
+   движок (engine.js) корректирует их по широте и сезону.
+   Активность по месяцам: индексы 0..11 (янв..дек), открытая вода.
+   ============================================================ */
+
+/* ---------- Типы водоёмов ---------- */
+const WATERS = {
+  pond: {
+    name: "Пруд", desc: "Малый замкнутый водоём, быстро прогревается",
+    tau: 2.5, sun: 1.12, flow: 0,
+    icon: "pond",
+  },
+  lake: {
+    name: "Озеро", desc: "Естественный водоём, прогревается медленно",
+    tau: 6, sun: 1.0, flow: 0,
+    icon: "lake",
+  },
+  river_small: {
+    name: "Малая река", desc: "Перекаты, омуты, быстрое течение",
+    tau: 3, sun: 0.95, flow: 2,
+    icon: "riverS",
+  },
+  river_big: {
+    name: "Крупная река", desc: "Русло, бровки, фарватер, течение",
+    tau: 5, sun: 0.97, flow: 2,
+    icon: "riverB",
+  },
+  oxbow: {
+    name: "Старица", desc: "Отрезанный рукав реки, тихая заросшая вода",
+    tau: 3, sun: 1.08, flow: 0,
+    icon: "oxbow",
+  },
+  reservoir: {
+    name: "Водохранилище", desc: "Большая вода, затопленное русло, бровки",
+    tau: 7, sun: 0.98, flow: 1,
+    icon: "reservoir",
+  },
+  canal: {
+    name: "Канал", desc: "Искусственное русло с умеренным течением",
+    tau: 4, sun: 1.0, flow: 1,
+    icon: "canal",
+  },
+};
+
+/* ---------- Характер места (отмечает пользователь) ---------- */
+const FEATURES = {
+  reeds:   { name: "Камыш / тростник", em: "🌾" },
+  lilies:  { name: "Кувшинки / трава", em: "🪷" },
+  snags:   { name: "Коряги / упавшие деревья", em: "🪵" },
+  dropoff: { name: "Яма / бровка рядом", em: "📉" },
+  flat:    { name: "Ровное дно / пляж", em: "🏖" },
+  bridge:  { name: "Мост / опоры / гидросооружения", em: "🌉" },
+};
+
+/* ---------- Глубина в месте ловли ---------- */
+const DEPTHS = {
+  shallow: { name: "Мелко, до 1,5 м", short: "мелководье" },
+  mid:     { name: "Средне, 1,5–3 м", short: "средняя глубина" },
+  deep:    { name: "Глубоко, от 3 м", short: "глубокое место" },
+};
+
+/* ---------- Снасти ---------- */
+const TACKLE = {
+  float: {
+    name: "Поплавочная удочка", desc: "Маховая, болонская или матчевая",
+    em: "🎣", dist: "5–25 м от берега",
+  },
+  feeder: {
+    name: "Фидер / донка", desc: "Кормушка, дальний заброс, ловля со дна",
+    em: "⚓", dist: "20–70 м, дно",
+  },
+  spinning: {
+    name: "Спиннинг", desc: "Искусственные приманки, активный поиск",
+    em: "🌀", dist: "поиск по площади",
+  },
+  livebait: {
+    name: "Живцовая снасть", desc: "Кружки, жерлицы, поплавок с живцом",
+    em: "🐟", dist: "у травы и ям",
+  },
+};
+
+/* ---------- Каталог насадок ----------
+   cat: animal | plant | artificial | live
+   tackle: с какими снастями совместима */
+const BAITS = {
+  worm:      { name: "Червь навозный",   cat: "animal", em: "🪱", tackle: ["float","feeder"] },
+  crawler:   { name: "Выползок",         cat: "animal", em: "🪱", tackle: ["float","feeder"] },
+  maggot:    { name: "Опарыш",           cat: "animal", em: "⚪", tackle: ["float","feeder"] },
+  bloodworm: { name: "Мотыль",           cat: "animal", em: "🔴", tackle: ["float","feeder"] },
+  corn:      { name: "Кукуруза",         cat: "plant",  em: "🌽", tackle: ["float","feeder"] },
+  barley:    { name: "Перловка",         cat: "plant",  em: "🌾", tackle: ["float","feeder"] },
+  dough:     { name: "Тесто / болтушка", cat: "plant",  em: "🥣", tackle: ["float","feeder"] },
+  bread:     { name: "Хлеб / корка",     cat: "plant",  em: "🍞", tackle: ["float"] },
+  pea:       { name: "Горох / пареный",  cat: "plant",  em: "🟢", tackle: ["float","feeder"] },
+  boilies:   { name: "Бойлы / пеллетс",  cat: "plant",  em: "🟤", tackle: ["feeder"] },
+  livebait:  { name: "Живец",            cat: "live",   em: "🐟", tackle: ["livebait","feeder"] },
+  spinner:   { name: "Вертушка",         cat: "artificial", em: "✨", tackle: ["spinning"] },
+  spoon:     { name: "Колебалка",        cat: "artificial", em: "🥄", tackle: ["spinning"] },
+  wobbler:   { name: "Воблер",           cat: "artificial", em: "🐠", tackle: ["spinning"] },
+  jig:       { name: "Джиг / силикон",   cat: "artificial", em: "🪝", tackle: ["spinning"] },
+};
+
+/* ---------- Рыбы ----------
+   waters:   реальная встречаемость по типам водоёмов, 0..1
+   months:   активность клёва по месяцам (средняя полоса), 0..1
+   temp:     [мин, опт-мин, опт-макс, макс] температуры воды, °C
+   times:    активность по времени суток
+   depth:    предпочтение глубины места
+   baits:    базовая привлекательность насадок, 0..1
+   tackle:   пригодность снастей
+   lat:      [южная, северная] границы уверенного обитания
+   habitat:  где искать (теги точек для схем и тактики)
+   shape:    силуэт для SVG (carp|bream|roach|pike|perch|catfish|asp|burbot)
+*/
+const FISHES = {
+  crucian: {
+    name: "Карась", latin: "Carassius gibelio", shape: "carp", hue: "#b08d3f",
+    waters: { pond: 1, oxbow: .95, lake: .8, canal: .4, river_small: .35, reservoir: .5, river_big: .2 },
+    months: [.05,.05,.15,.45,.85,1,.9,.85,.6,.3,.1,.05],
+    temp: [8, 15, 24, 30],
+    times: { dawn: 1, day: .5, dusk: .9, night: .35 },
+    depth: { shallow: .9, mid: .8, deep: .3 },
+    baits: { worm: .95, maggot: .8, bloodworm: .7, corn: .7, barley: .75, dough: .85, bread: .7, pea: .4, boilies: .3 },
+    tackle: { float: 1, feeder: .8, spinning: .05, livebait: 0 },
+    lat: [43, 64],
+    habitat: ["reeds", "lilies", "flat"],
+    note: "Главная рыба прудов и стариц. Любит тёплую тихую воду у растительности.",
+  },
+  carp: {
+    name: "Карп / сазан", latin: "Cyprinus carpio", shape: "carp", hue: "#8a6d2f",
+    waters: { pond: .9, reservoir: .6, lake: .5, river_big: .45, oxbow: .3, canal: .3, river_small: .1 },
+    months: [.02,.02,.1,.3,.7,1,.95,.9,.6,.25,.05,.02],
+    temp: [12, 18, 26, 30],
+    times: { dawn: .95, day: .5, dusk: .9, night: .8 },
+    depth: { shallow: .5, mid: .9, deep: .7 },
+    baits: { corn: .95, boilies: .95, pea: .8, worm: .7, crawler: .6, dough: .6, barley: .5, bread: .45 },
+    tackle: { float: .6, feeder: 1, spinning: 0, livebait: 0 },
+    lat: [43, 58],
+    habitat: ["lilies", "snags", "dropoff"],
+    note: "Тепло- и кормолюбив. В зарыбленных прудах — основной трофей; в реках — дикий сазан.",
+  },
+  roach: {
+    name: "Плотва", latin: "Rutilus rutilus", shape: "roach", hue: "#9aa5b5",
+    waters: { lake: .9, river_big: .9, reservoir: .9, river_small: .85, canal: .8, oxbow: .8, pond: .7 },
+    months: [.35,.3,.5,.85,.9,.8,.7,.7,.75,.6,.4,.35],
+    temp: [4, 10, 20, 26],
+    times: { dawn: .9, day: .65, dusk: .85, night: .15 },
+    depth: { shallow: .7, mid: .9, deep: .5 },
+    baits: { maggot: .95, bloodworm: .9, worm: .7, barley: .8, dough: .75, bread: .6, corn: .45 },
+    tackle: { float: 1, feeder: .8, spinning: .1, livebait: 0 },
+    lat: [43, 68],
+    habitat: ["flat", "reeds", "dropoff"],
+    note: "Самая массовая белая рыба — есть почти везде, клюёт круглый год.",
+  },
+  bream: {
+    name: "Лещ", latin: "Abramis brama", shape: "bream", hue: "#a98e58",
+    waters: { river_big: .95, reservoir: .95, lake: .8, canal: .6, oxbow: .4, river_small: .3, pond: .15 },
+    months: [.2,.15,.3,.6,.9,1,.85,.8,.75,.5,.3,.2],
+    temp: [6, 12, 22, 26],
+    times: { dawn: .95, day: .35, dusk: .95, night: .85 },
+    depth: { shallow: .1, mid: .6, deep: 1 },
+    baits: { worm: .9, crawler: .85, maggot: .85, bloodworm: .8, corn: .7, pea: .85, barley: .6, dough: .5, boilies: .4 },
+    tackle: { float: .6, feeder: 1, spinning: 0, livebait: 0 },
+    lat: [44, 64],
+    habitat: ["dropoff", "flat"],
+    note: "Глубинная стайная рыба рек и водохранилищ. Ключ к лещу — бровка и прикормка.",
+  },
+  perch: {
+    name: "Окунь", latin: "Perca fluviatilis", shape: "perch", hue: "#5c8a4f",
+    waters: { lake: .95, river_big: .9, reservoir: .9, river_small: .85, canal: .8, oxbow: .85, pond: .6 },
+    months: [.5,.4,.5,.7,.85,.9,.8,.85,1,.9,.6,.5],
+    temp: [4, 10, 22, 27],
+    times: { dawn: 1, day: .75, dusk: .85, night: .05 },
+    depth: { shallow: .7, mid: .9, deep: .6 },
+    baits: { worm: .85, spinner: .95, jig: .9, wobbler: .7, spoon: .6, livebait: .8, maggot: .5, bloodworm: .5 },
+    tackle: { float: .7, feeder: .3, spinning: 1, livebait: .7 },
+    lat: [43, 69],
+    habitat: ["snags", "dropoff", "reeds", "bridge"],
+    note: "Дневной стайный хищник. Где малёк и укрытия — там и окунь.",
+  },
+  pike: {
+    name: "Щука", latin: "Esox lucius", shape: "pike", hue: "#6e8c4a",
+    waters: { oxbow: .9, lake: .9, river_small: .85, reservoir: .85, river_big: .8, pond: .5, canal: .5 },
+    months: [.55,.45,.7,.65,.6,.5,.4,.55,.85,1,.8,.6],
+    temp: [3, 8, 18, 24],
+    times: { dawn: 1, day: .55, dusk: .9, night: .1 },
+    depth: { shallow: .8, mid: .9, deep: .5 },
+    baits: { spoon: .9, wobbler: .95, jig: .85, spinner: .7, livebait: 1 },
+    tackle: { float: .1, feeder: 0, spinning: 1, livebait: .9 },
+    lat: [43, 69],
+    habitat: ["reeds", "lilies", "snags", "dropoff"],
+    note: "Засадный хищник у травы и коряг. Лучшее время — осень и преднерестовый март.",
+  },
+  zander: {
+    name: "Судак", latin: "Sander lucioperca", shape: "pike", hue: "#7d8a99",
+    waters: { river_big: .9, reservoir: .9, canal: .5, lake: .4, river_small: .1, oxbow: .05, pond: .02 },
+    months: [.4,.3,.5,.6,.75,.9,.7,.7,.85,1,.7,.5],
+    temp: [4, 10, 20, 25],
+    times: { dawn: .85, day: .25, dusk: 1, night: .9 },
+    depth: { shallow: .1, mid: .5, deep: 1 },
+    baits: { jig: 1, wobbler: .8, livebait: .85, spoon: .5, spinner: .3 },
+    tackle: { float: 0, feeder: .1, spinning: 1, livebait: .7 },
+    lat: [44, 61],
+    habitat: ["dropoff", "snags", "bridge"],
+    note: "Сумеречный хищник глубоких бровок и коряжников больших рек и водохранилищ.",
+  },
+  catfish: {
+    name: "Сом", latin: "Silurus glanis", shape: "catfish", hue: "#6b6258",
+    waters: { river_big: .85, reservoir: .6, oxbow: .3, canal: .3, lake: .2, river_small: .15, pond: .05 },
+    months: [0,0,.05,.2,.6,.95,1,.9,.6,.3,.05,0],
+    temp: [14, 18, 27, 30],
+    times: { dawn: .5, day: .15, dusk: .85, night: 1 },
+    depth: { shallow: .05, mid: .4, deep: 1 },
+    baits: { crawler: .9, livebait: .95, worm: .5, jig: .6, wobbler: .5, spoon: .4 },
+    tackle: { float: .1, feeder: .9, spinning: .7, livebait: .9 },
+    lat: [43, 57],
+    habitat: ["dropoff", "snags"],
+    note: "Хозяин речных ям. Тёплые ночи июня–августа — его время.",
+  },
+  ide: {
+    name: "Язь", latin: "Leuciscus idus", shape: "roach", hue: "#b3923c",
+    waters: { river_big: .8, river_small: .7, oxbow: .5, reservoir: .5, lake: .4, canal: .4, pond: .05 },
+    months: [.2,.2,.45,.8,.9,.8,.65,.6,.65,.5,.3,.2],
+    temp: [5, 10, 20, 25],
+    times: { dawn: .95, day: .5, dusk: .9, night: .4 },
+    depth: { shallow: .5, mid: .9, deep: .6 },
+    baits: { worm: .85, maggot: .7, corn: .6, pea: .6, bread: .5, wobbler: .6, spinner: .6, dough: .5 },
+    tackle: { float: .9, feeder: .8, spinning: .6, livebait: .1 },
+    lat: [46, 66],
+    habitat: ["dropoff", "snags", "bridge"],
+    note: "Сильная всеядная рыба речных струй и омутов, любит границу течения.",
+  },
+  chub: {
+    name: "Голавль", latin: "Squalius cephalus", shape: "roach", hue: "#8f8456",
+    waters: { river_small: .95, river_big: .7, canal: .2, oxbow: .05, lake: .02, reservoir: .1, pond: 0 },
+    months: [.05,.05,.3,.7,.95,1,.85,.8,.7,.4,.15,.05],
+    temp: [8, 14, 22, 27],
+    times: { dawn: .9, day: .7, dusk: .9, night: .3 },
+    depth: { shallow: .8, mid: .9, deep: .3 },
+    baits: { wobbler: .9, spinner: .8, worm: .7, crawler: .7, bread: .6, maggot: .5, corn: .5 },
+    tackle: { float: .7, feeder: .5, spinning: 1, livebait: .1 },
+    lat: [44, 60],
+    habitat: ["bridge", "snags", "flat"],
+    note: "Рыба перекатов и нависших деревьев малых рек. Осторожен — нужна маскировка.",
+  },
+  tench: {
+    name: "Линь", latin: "Tinca tinca", shape: "carp", hue: "#5f7240",
+    waters: { oxbow: .9, pond: .8, lake: .7, canal: .3, river_small: .2, reservoir: .2, river_big: .05 },
+    months: [0,0,.05,.3,.8,1,.85,.7,.4,.1,0,0],
+    temp: [12, 17, 24, 28],
+    times: { dawn: 1, day: .3, dusk: .9, night: .5 },
+    depth: { shallow: .9, mid: .7, deep: .1 },
+    baits: { worm: 1, maggot: .6, bloodworm: .6, corn: .5, dough: .4, pea: .3 },
+    tackle: { float: 1, feeder: .4, spinning: 0, livebait: 0 },
+    lat: [44, 60],
+    habitat: ["reeds", "lilies"],
+    note: "Скрытный житель заросших стариц и прудов. Клюёт в окнах травы на зорях.",
+  },
+  rudd: {
+    name: "Краснопёрка", latin: "Scardinius erythrophthalmus", shape: "roach", hue: "#b5703c",
+    waters: { oxbow: .9, lake: .8, pond: .7, canal: .5, reservoir: .5, river_small: .4, river_big: .3 },
+    months: [.05,.05,.2,.6,.9,1,.9,.85,.6,.3,.1,.05],
+    temp: [10, 15, 24, 28],
+    times: { dawn: .8, day: .85, dusk: .8, night: .05 },
+    depth: { shallow: 1, mid: .5, deep: .05 },
+    baits: { maggot: .9, worm: .7, bread: .7, dough: .6, corn: .5, barley: .5, spinner: .3 },
+    tackle: { float: 1, feeder: .2, spinning: .3, livebait: 0 },
+    lat: [43, 62],
+    habitat: ["reeds", "lilies"],
+    note: "Держится у поверхности среди травы. Летом берёт смело весь день.",
+  },
+  silver_bream: {
+    name: "Густера", latin: "Blicca bjoerkna", shape: "bream", hue: "#9b9faa",
+    waters: { river_big: .8, reservoir: .8, lake: .6, canal: .6, river_small: .4, oxbow: .4, pond: .1 },
+    months: [.2,.15,.3,.6,.85,.9,.8,.75,.7,.5,.3,.2],
+    temp: [6, 12, 22, 26],
+    times: { dawn: .85, day: .5, dusk: .9, night: .5 },
+    depth: { shallow: .3, mid: .9, deep: .8 },
+    baits: { maggot: .9, worm: .85, bloodworm: .85, barley: .6, corn: .5, dough: .5 },
+    tackle: { float: .9, feeder: 1, spinning: 0, livebait: 0 },
+    lat: [44, 62],
+    habitat: ["dropoff", "flat"],
+    note: "Спутница леща на бровках, но ближе к берегу и мельче. Клюёт охотно.",
+  },
+  burbot: {
+    name: "Налим", latin: "Lota lota", shape: "burbot", hue: "#54604f",
+    waters: { river_big: .7, river_small: .6, lake: .5, reservoir: .5, canal: .1, oxbow: .05, pond: 0 },
+    months: [.95,.8,.5,.15,0,0,0,0,.2,.6,1,1],
+    temp: [1, 2, 10, 14],
+    times: { dawn: .3, day: .05, dusk: .6, night: 1 },
+    depth: { shallow: .2, mid: .6, deep: 1 },
+    baits: { livebait: .9, crawler: .9, worm: .7, jig: .3 },
+    tackle: { float: .1, feeder: 1, spinning: .2, livebait: .8 },
+    lat: [50, 70],
+    habitat: ["dropoff", "snags"],
+    note: "Единственный пресноводный из тресковых: чем холоднее и темнее — тем лучше клёв.",
+  },
+  asp: {
+    name: "Жерех", latin: "Leuciscus aspius", shape: "asp", hue: "#7e8fa3",
+    waters: { river_big: .85, reservoir: .5, river_small: .3, canal: .3, lake: .1, oxbow: .02, pond: 0 },
+    months: [.05,.05,.3,.6,.8,.9,.85,.9,1,.7,.3,.1],
+    temp: [8, 14, 22, 26],
+    times: { dawn: .9, day: .85, dusk: .8, night: .05 },
+    depth: { shallow: .7, mid: .9, deep: .4 },
+    baits: { spoon: .95, wobbler: .8, spinner: .7, jig: .5 },
+    tackle: { float: 0, feeder: 0, spinning: 1, livebait: .2 },
+    lat: [45, 58],
+    habitat: ["flat", "bridge", "dropoff"],
+    note: "Дневной речной корсар: бьёт малька «котлами» на струе. Нужен дальний заброс.",
+  },
+  rotan: {
+    name: "Ротан", latin: "Perccottus glenii", shape: "perch", hue: "#4f5a44",
+    waters: { pond: .85, oxbow: .7, lake: .3, canal: .2, river_small: .05, river_big: 0, reservoir: .1 },
+    months: [.3,.25,.4,.7,.9,.9,.85,.85,.8,.6,.4,.3],
+    temp: [4, 12, 24, 30],
+    times: { dawn: .8, day: .9, dusk: .8, night: .2 },
+    depth: { shallow: 1, mid: .4, deep: .05 },
+    baits: { worm: 1, crawler: .8, maggot: .7, livebait: .5, jig: .4, bloodworm: .6 },
+    tackle: { float: 1, feeder: .3, spinning: .4, livebait: .4 },
+    lat: [45, 62],
+    habitat: ["reeds", "lilies", "snags"],
+    note: "Неприхотливый вселенец заморных прудов: клюёт жадно почти всегда.",
+  },
+};
+
+/* ---------- Подписи направлений ветра ---------- */
+const WIND_DIRS = ["С","ССВ","СВ","ВСВ","В","ВЮВ","ЮВ","ЮЮВ","Ю","ЮЮЗ","ЮЗ","ЗЮЗ","З","ЗСЗ","СЗ","ССЗ"];
+
+function windDirName(deg) {
+  return WIND_DIRS[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+}
+
+/* ===== astro.js ===== */
+/* ============================================================
+   КлёвГид — астрономия: фаза Луны, восход/закат (фолбэк-расчёт).
+   Алгоритмы описаны в ai/docs/05-algorithms.md
+   ============================================================ */
+
+const SYNODIC = 29.530588853;            // синодический месяц, сут
+const NEW_MOON_EPOCH = Date.UTC(2000, 0, 6, 18, 14); // эталонное новолуние
+
+/* Фаза Луны: frac 0..1 (0 — новолуние, 0.5 — полнолуние) */
+function moonPhase(date = new Date()) {
+  const days = (date.getTime() - NEW_MOON_EPOCH) / 86400000;
+  const frac = ((days % SYNODIC) + SYNODIC) % SYNODIC / SYNODIC;
+  const illum = (1 - Math.cos(2 * Math.PI * frac)) / 2; // освещённость 0..1
+  const waxing = frac < 0.5;
+
+  let name, em;
+  if (frac < 0.033 || frac > 0.967) { name = "Новолуние"; em = "🌑"; }
+  else if (frac < 0.217) { name = "Растущий серп"; em = "🌒"; }
+  else if (frac < 0.283) { name = "Первая четверть"; em = "🌓"; }
+  else if (frac < 0.467) { name = "Растущая Луна"; em = "🌔"; }
+  else if (frac < 0.533) { name = "Полнолуние"; em = "🌕"; }
+  else if (frac < 0.717) { name = "Убывающая Луна"; em = "🌖"; }
+  else if (frac < 0.783) { name = "Последняя четверть"; em = "🌗"; }
+  else { name = "Старый серп"; em = "🌘"; }
+
+  /* Влияние на клёв (мягкий фактор, 0..1):
+     полнолуние — спад, новолуние — лёгкий спад, растущая — лучшее время */
+  let score;
+  if (frac < 0.033 || frac > 0.967) score = 0.88;
+  else if (frac < 0.467) score = 0.92 + 0.08 * Math.sin(Math.PI * (frac - 0.03) / 0.44); // растущая
+  else if (frac < 0.533) score = 0.82;                                                    // полнолуние
+  else score = 0.9;                                                                       // убывающая
+
+  return { frac, illum, waxing, name, em, score };
+}
+
+/* ---- Восход/закат: упрощённый расчёт NOAA (фолбэк, когда нет API) ----
+   Возвращает Date в локальном времени браузера. Точность ±5 мин. */
+function sunTimes(date, lat, lon) {
+  const rad = Math.PI / 180;
+  const dayMs = 86400000;
+  const J2000 = 2451545;
+  const jd = date.getTime() / dayMs + 2440587.5;           // юлианская дата
+  const n = Math.round(jd - J2000 - 0.0009 + lon / 360);
+  const Jstar = J2000 + 0.0009 - lon / 360 + n;            // средний солнечный полдень (вост. долгота — раньше по UTC)
+  const M = (357.5291 + 0.98560028 * (Jstar - J2000)) % 360;
+  const C = 1.9148 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 0.0003 * Math.sin(3 * M * rad);
+  const L = (M + C + 180 + 102.9372) % 360;                // эклиптическая долгота
+  const Jtransit = Jstar + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * L * rad);
+  const delta = Math.asin(Math.sin(L * rad) * Math.sin(23.4397 * rad)); // склонение
+  const cosH = (Math.sin(-0.83 * rad) - Math.sin(lat * rad) * Math.sin(delta)) /
+               (Math.cos(lat * rad) * Math.cos(delta));
+  if (cosH > 1 || cosH < -1) return { sunrise: null, sunset: null, polar: cosH < -1 ? "day" : "night" };
+  const H = Math.acos(cosH) / rad;
+  const Jset = Jtransit + H / 360;
+  const Jrise = Jtransit - H / 360;
+  const toDate = (J) => new Date((J - 2440587.5) * dayMs);
+  return { sunrise: toDate(Jrise), sunset: toDate(Jset), polar: null };
+}
+
+/* Тип времени суток относительно восхода/заката */
+function dayPeriod(date, sunrise, sunset) {
+  if (!sunrise || !sunset) return "day";
+  const t = date.getTime(), r = sunrise.getTime(), s = sunset.getTime();
+  const hour = 3600000;
+  if (t >= r - 1.2 * hour && t <= r + 1.8 * hour) return "dawn";   // зорька утренняя
+  if (t >= s - 1.8 * hour && t <= s + 1.2 * hour) return "dusk";   // зорька вечерняя
+  if (t > r && t < s) return "day";
+  return "night";
+}
+
+const PERIOD_NAMES = { dawn: "утренняя зорька", day: "день", dusk: "вечерняя зорька", night: "ночь" };
+
+/* ===== weather.js ===== */
+/* ============================================================
+   КлёвГид — метеоданные (Open-Meteo) и модель температуры воды.
+   API бесплатный, без ключей: https://open-meteo.com/
+   Формат запроса и модель воды описаны в ai/docs/04-api.md
+   и ai/docs/05-algorithms.md
+   ============================================================ */
+
+
+const HPA_TO_MM = 0.750062;
+const API = "https://api.open-meteo.com/v1/forecast";
+const NOMINATIM = "https://nominatim.openstreetmap.org/reverse";
+
+/* fetch с таймаутом */
+async function getJSON(url, ms = 14000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } finally { clearTimeout(timer); }
+}
+
+/* ---------- Основной запрос погоды ----------
+   past_days=7 нужен модели температуры воды (тепловая инерция). */
+export async function fetchWeather(lat, lon) {
+  const params = new URLSearchParams({
+    latitude: lat.toFixed(4),
+    longitude: lon.toFixed(4),
+    current: "temperature_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,relative_humidity_2m",
+    hourly: "temperature_2m,surface_pressure,cloud_cover,precipitation,wind_speed_10m,is_day",
+    daily: "sunrise,sunset,temperature_2m_max,temperature_2m_min",
+    past_days: "7",
+    forecast_days: "2",
+    timezone: "auto",
+    wind_speed_unit: "ms",
+  });
+  const d = await getJSON(`${API}?${params}`);
+
+  /* Нормализация почасовых рядов */
+  const H = d.hourly;
+  const hours = H.time.map((t, i) => ({
+    time: t,                                  // локальное время точки, ISO без зоны
+    date: new Date(t),
+    t: H.temperature_2m[i],
+    pressureMm: H.surface_pressure[i] * HPA_TO_MM,
+    clouds: H.cloud_cover[i],
+    precip: H.precipitation[i],
+    wind: H.wind_speed_10m[i],
+    isDay: H.is_day ? H.is_day[i] : 1,
+  }));
+
+  const nowIso = d.current.time;
+  const nowIdx = Math.max(0, H.time.findIndex(t => t >= nowIso));
+
+  return {
+    source: "api",
+    timezone: d.timezone,
+    utcOffsetSec: d.utc_offset_seconds,
+    current: {
+      time: new Date(d.current.time),
+      t: d.current.temperature_2m,
+      feels: d.current.apparent_temperature,
+      humidity: d.current.relative_humidity_2m,
+      isDay: !!d.current.is_day,
+      precip: d.current.precipitation,
+      code: d.current.weather_code,
+      clouds: d.current.cloud_cover,
+      pressureMm: d.current.surface_pressure * HPA_TO_MM,
+      windMs: d.current.wind_speed_10m,
+      windDir: d.current.wind_direction_10m,
+      gusts: d.current.wind_gusts_10m,
+    },
+    hours,
+    nowIdx,
+    daily: {
+      sunrise: d.daily.sunrise.map(t => new Date(t)),
+      sunset: d.daily.sunset.map(t => new Date(t)),
+      tMax: d.daily.temperature_2m_max,
+      tMin: d.daily.temperature_2m_min,
+      time: d.daily.time,
+    },
+  };
+}
+
+/* ---------- Обратное геокодирование (название места) ---------- */
+export async function reverseGeocode(lat, lon) {
+  try {
+    const url = `${NOMINATIM}?lat=${lat}&lon=${lon}&format=jsonv2&zoom=12&accept-language=ru`;
+    const d = await getJSON(url, 8000);
+    const a = d.address || {};
+    const parts = [
+      a.village || a.hamlet || a.town || a.city || a.municipality,
+      a.district || a.county,
+      a.state || a.region,
+    ].filter(Boolean);
+    return parts.slice(0, 2).join(", ") || d.display_name?.split(",").slice(0, 2).join(",") || null;
+  } catch { return null; }
+}
+
+/* ---------- Модель температуры воды ----------
+   Вода — тепловой аккумулятор: следует за воздухом с запаздыванием.
+   Экспоненциальное сглаживание почасовой T воздуха с постоянной
+   времени tau (сутки) по типу водоёма + поправка на солнце для
+   мелких водоёмов + физические ограничители. Это ОЦЕНКА (±2 °C). */
+function estimateWaterTemp(hours, nowIdx, waterType, lat = 55) {
+  const w = WATERS[waterType] || WATERS.lake;
+  const past = hours.slice(0, nowIdx + 1);
+  if (!past.length) return null;
+
+  const alpha = 1 / (w.tau * 24);          // шаг — 1 час
+  let ema = past[0].t;
+  let cloudSum = 0, cloudN = 0;
+  for (const h of past) {
+    ema += alpha * (h.t - ema);
+    if (h.isDay) { cloudSum += h.clouds; cloudN++; }
+  }
+
+  let water = ema;
+
+  /* Солнечный прогрев мелководных водоёмов в светлое полугодие */
+  const month = past[past.length - 1].date.getMonth(); // 0..11
+  const warmSeason = month >= 3 && month <= 8;
+  if (warmSeason) {
+    const avgClouds = cloudN ? cloudSum / cloudN : 60;
+    const sunBoost = (1 - avgClouds / 100) * 2.2 * (w.sun - 0.94); // макс ~+1.5° для пруда
+    water += Math.max(0, sunBoost);
+  }
+
+  /* Течение чуть охлаждает летом и сглаживает зимой */
+  if (w.flow === 2 && water > 20) water -= 0.6;
+
+  /* Физика: не ниже 0.2 °C; весной вода не теплее воздуха в среднем */
+  water = Math.max(0.2, Math.min(water, 30));
+  return Math.round(water * 10) / 10;
+}
+
+/* Ряд температуры воды по дням (для графика «вода и воздух, 7 дней») */
+function waterTempSeries(hours, nowIdx, waterType) {
+  const w = WATERS[waterType] || WATERS.lake;
+  const alpha = 1 / (w.tau * 24);
+  let ema = hours[0]?.t ?? 10;
+  const out = [];
+  for (let i = 0; i <= nowIdx; i++) {
+    ema += alpha * (hours[i].t - ema);
+    out.push({ date: hours[i].date, water: Math.max(0.2, ema), air: hours[i].t });
+  }
+  return out;
+}
+
+/* ---------- Тренд давления за 24 часа ---------- */
+function pressureTrend(hours, nowIdx) {
+  const now = hours[nowIdx]?.pressureMm;
+  const prev = hours[Math.max(0, nowIdx - 24)]?.pressureMm;
+  if (now == null || prev == null) return { delta: 0, label: "стабильно", cls: "good" };
+  const delta = now - prev;
+  let label, cls;
+  if (delta <= -5)      { label = "резко падает";  cls = "bad"; }
+  else if (delta <= -2) { label = "падает";        cls = "warn"; }
+  else if (delta < 2)   { label = "стабильно";     cls = "good"; }
+  else if (delta < 5)   { label = "растёт";        cls = "warn"; }
+  else                  { label = "резко растёт";  cls = "bad"; }
+  return { delta: Math.round(delta * 10) / 10, label, cls };
+}
+
+/* ---------- Словесное описание погоды по WMO-коду ---------- */
+const WMO = {
+  0: "ясно", 1: "почти ясно", 2: "переменная облачность", 3: "пасмурно",
+  45: "туман", 48: "изморозь", 51: "лёгкая морось", 53: "морось", 55: "сильная морось",
+  61: "небольшой дождь", 63: "дождь", 65: "сильный дождь", 66: "ледяной дождь", 67: "ледяной дождь",
+  71: "небольшой снег", 73: "снег", 75: "сильный снег", 77: "снежные зёрна",
+  80: "ливень местами", 81: "ливень", 82: "сильный ливень",
+  85: "снегопад", 86: "сильный снегопад", 95: "гроза", 96: "гроза с градом", 99: "гроза с градом",
+};
+function weatherWord(code) { return WMO[code] || "—"; }
+
+/* ---------- Ручной режим (без интернета) ---------- */
+function manualWeather({ air, water, pressure, wind, windDir, clouds }, lat, lon) {
+  const now = new Date();
+  const hours = [];
+  for (let i = -48; i <= 24; i++) {
+    hours.push({
+      time: new Date(now.getTime() + i * 3600000).toISOString(),
+      date: new Date(now.getTime() + i * 3600000),
+      t: air, pressureMm: pressure, clouds, precip: 0, wind, isDay: 1,
+    });
+  }
+  return {
+    source: "manual",
+    timezone: "местное",
+    utcOffsetSec: -now.getTimezoneOffset() * 60,
+    current: {
+      time: now, t: air, feels: air, humidity: 60, isDay: true, precip: 0,
+      code: clouds > 80 ? 3 : clouds > 40 ? 2 : 0, clouds,
+      pressureMm: pressure, windMs: wind, windDir, gusts: wind * 1.5,
+    },
+    hours, nowIdx: 48,
+    daily: { sunrise: [], sunset: [], tMax: [], tMin: [], time: [] },
+    manualWater: water,
+  };
+}
+
+/* ===== engine.js ===== */
+/* ============================================================
+   КлёвГид — движок рекомендаций.
+   Скоринг клёва, ранжирование насадок, генерация тактики.
+   Формулы и веса описаны в ai/docs/05-algorithms.md
+   ============================================================ */
+
+
+
+
+/* ---------- Вспомогательные ---------- */
+
+/* Трапециевидная функция: 0 за пределами [a,d], 1 внутри [b,c] */
+function trapezoid(x, [a, b, c, d]) {
+  if (x <= a || x >= d) return 0;
+  if (x < b) return (x - a) / (b - a);
+  if (x > c) return (d - x) / (d - c);
+  return 1;
+}
+
+/* Присутствие вида на данной широте (плавный спад за границами ареала) */
+function latPresence(fish, lat) {
+  const [s, n] = fish.lat;
+  if (lat >= s && lat <= n) return 1;
+  const over = lat < s ? s - lat : lat - n;
+  return Math.max(0, 1 - over / 3);
+}
+
+/* Сезонная активность с поправкой на широту:
+   севернее 55° сезон сдвигается позже, южнее — раньше и длиннее */
+function seasonActivity(fish, month, lat) {
+  const m = fish.months;
+  const shift = (lat - 55) * 0.06;               // в «месяцах», ±0.9 на краях
+  const idx = ((month - shift) % 12 + 12) % 12;
+  const lo = Math.floor(idx), hi = (lo + 1) % 12, f = idx - lo;
+  return m[lo] * (1 - f) + m[hi] * f;
+}
+
+/* Соответствие температуры воды виду */
+function tempScore(fish, waterT) {
+  if (waterT == null) return 0.6;
+  return trapezoid(waterT, fish.temp);
+}
+
+/* ---------- Факторы погоды (общие для всех видов) ---------- */
+
+function windScore(windMs, windDirDeg, fish) {
+  let s;
+  if (windMs < 0.7) s = 0.72;                    // полный штиль — хуже среднего
+  else if (windMs <= 5) s = 1;                   // лёгкая рябь — идеал
+  else if (windMs <= 8) s = 0.7;
+  else if (windMs <= 12) s = 0.45;
+  else s = 0.25;
+  const dir = ((windDirDeg % 360) + 360) % 360;  // откуда дует
+  if (dir >= 315 || dir <= 90) s *= 0.85;        // северный/восточный — минус
+  else if (dir >= 180 && dir <= 270) s *= 1.05;  // южный/западный — плюс
+  return Math.min(1, s);
+}
+
+function skyScore(clouds, precip, waterT) {
+  let s;
+  const warm = waterT != null && waterT >= 16;
+  if (warm) s = clouds >= 60 ? 1 : clouds >= 30 ? 0.88 : 0.72;   // летом пасмурно лучше
+  else s = clouds >= 85 ? 0.8 : 0.95;                            // в холод — стабильная ясность
+  if (precip > 4) s *= 0.35;                                     // ливень
+  else if (precip > 1) s *= 0.75;                                // дождь
+  else if (precip > 0.1) s *= warm ? 1.05 : 0.9;                 // морось летом — плюс
+  return Math.min(1, s);
+}
+
+function pressureScore(trend, pressureMm) {
+  let s;
+  switch (trend.label) {
+    case "стабильно":     s = 1; break;
+    case "падает":        s = 0.8; break;
+    case "растёт":        s = 0.72; break;
+    case "резко падает":  s = 0.45; break;
+    default:              s = 0.5;                // резко растёт
+  }
+  if (pressureMm < 728 || pressureMm > 778) s *= 0.8; // экстремумы
+  return s;
+}
+
+/* ---------- Активность вида «прямо сейчас» (бейджи шага 4) ---------- */
+function fishActivityNow(fishId, ctx) {
+  const fish = FISHES[fishId];
+  const wAff = fish.waters[ctx.water] ?? 0;
+  const pres = latPresence(fish, ctx.lat);
+  if (wAff < 0.05 || pres <= 0) return null;     // вида здесь нет — не показываем
+
+  const season = seasonActivity(fish, ctx.month, ctx.lat);
+  const temp = tempScore(fish, ctx.waterTemp);
+  const period = dayPeriod(ctx.now, ctx.sunrise, ctx.sunset);
+  const time = fish.times[period] ?? 0.5;
+  const score = wAff * pres * (0.45 * season + 0.35 * temp + 0.2 * time);
+
+  const why = [];
+  if (wAff >= 0.75) why.push("типичный обитатель такого водоёма");
+  else if (wAff >= 0.4) why.push("встречается здесь регулярно");
+  else why.push("заходит сюда нечасто");
+  if (season >= 0.75) why.push("сезон активного клёва");
+  else if (season <= 0.25) why.push("не сезон");
+  if (temp >= 0.8) why.push("вода комфортной температуры");
+  else if (temp <= 0.3) why.push(ctx.waterTemp < fish.temp[1] ? "вода ещё холодна" : "вода слишком тёплая");
+
+  return { score, why: why.join(", "), season, temp, wAff };
+}
+
+function activityLabel(score) {
+  if (score >= 0.55) return { cls: "act-high", label: "Высокая активность" };
+  if (score >= 0.3)  return { cls: "act-mid",  label: "Средняя активность" };
+  return { cls: "act-low", label: "Низкая активность" };
+}
+
+/* ---------- Главный расчёт: шанс клёва ---------- */
+function computeBite(state) {
+  const { weather, water, fishId, lat, lon } = state;
+  const fish = FISHES[fishId];
+  const cur = weather.current;
+  const now = cur.time;
+  const month = now.getMonth();
+  const waterT = state.waterTemp;
+
+  const sr = weather.daily.sunrise[7] || weather.daily.sunrise[0] || sunTimes(now, lat, lon).sunrise;
+  const ss = weather.daily.sunset[7] || weather.daily.sunset[0] || sunTimes(now, lat, lon).sunset;
+
+  const trend = pressureTrend(weather.hours, weather.nowIdx);
+  const moon = moonPhase(now);
+  const period = dayPeriod(now, sr, ss);
+
+  const wAff = fish.waters[water] ?? 0;
+  const pres = latPresence(fish, lat);
+
+  /* Лучший балл насадки из имеющихся (или из всех, если не отмечали) */
+  const baitRank = rankBaits(state);
+  const baitBest = baitRank.length ? baitRank[0].score : 0.4;
+
+  const F = [];
+  const add = (key, name, score, weight, note) =>
+    F.push({ key, name, score: Math.max(0, Math.min(1, score)), weight, note });
+
+  add("season", "Сезон и календарь клёва", seasonActivity(fish, month, lat), 0.18,
+      seasonNote(fish, month, lat));
+  add("water", "Водоём для этой рыбы", wAff * pres, 0.13,
+      wAff >= 0.7 ? "родная среда обитания" : wAff >= 0.35 ? "встречается, но не основная среда" : "здесь этот вид редок");
+  add("temp", "Температура воды", tempScore(fish, waterT), 0.16,
+      waterT != null ? `${waterT.toFixed(1)} °C при комфорте ${fish.temp[1]}–${fish.temp[2]} °C` : "оценка недоступна");
+  add("time", "Время суток", fish.times[period] ?? 0.5, 0.12,
+      `сейчас ${PERIOD_NAMES[period]}`);
+  add("pressure", "Атмосферное давление", pressureScore(trend, cur.pressureMm), 0.14,
+      `${Math.round(cur.pressureMm)} мм, ${trend.label} (${trend.delta > 0 ? "+" : ""}${trend.delta} мм/сутки)`);
+  add("wind", "Ветер", windScore(cur.windMs, cur.windDir, fish), 0.09,
+      `${cur.windMs.toFixed(1)} м/с, ${windDirName(cur.windDir)}`);
+  add("sky", "Облачность и осадки", skyScore(cur.clouds, cur.precip, waterT), 0.08,
+      `облачность ${Math.round(cur.clouds)}%${cur.precip > 0.1 ? ", осадки" : ""}`);
+  add("moon", "Фаза Луны", moon.score, 0.05, `${moon.em} ${moon.name.toLowerCase()}`);
+  add("bait", "Насадка", baitBest, 0.05,
+      baitRank.length ? `лучшая — ${baitRank[0].name.toLowerCase()}` : "—");
+
+  let total = F.reduce((s, f) => s + f.score * f.weight, 0) /
+              F.reduce((s, f) => s + f.weight, 0);
+
+  /* Жёсткий потолок, если вида в водоёме практически нет */
+  const presence = wAff * pres;
+  if (presence < 0.15) total = Math.min(total, 0.14);
+  else if (presence < 0.35) total = Math.min(total, 0.45);
+
+  const pct = Math.round(Math.max(3, Math.min(96, total * 100)));
+
+  return {
+    pct,
+    factors: F,
+    verdict: verdictFor(pct, presence),
+    moon, trend, period,
+    sunrise: sr, sunset: ss,
+    hourly: hourlyForecast(state, fish, sr, ss),
+    baits: baitRank,
+  };
+}
+
+function verdictFor(pct, presence) {
+  if (presence < 0.15) return { title: "Не та рыба для этого места", phrase: "Этот вид здесь почти не встречается. Выберите другую рыбу — подскажем, кто тут реально клюёт." };
+  if (pct < 22) return { title: "Шансы слабые", phrase: "Условия против вас. Если ехать всё равно — ловите на зорях и меняйте насадки чаще." };
+  if (pct < 42) return { title: "Клёв вялый, но возможен", phrase: "Рыба малоактивна: подача деликатнее, крючки мельче, точку прикармливайте и ждите выходы." };
+  if (pct < 62) return { title: "Неплохие шансы", phrase: "Рабочая обстановка. Правильная точка и насадка сделают рыбалку." };
+  if (pct < 80) return { title: "Хороший клёв вероятен", phrase: "Условия складываются удачно — берите запас насадок и не проспите зорьку." };
+  return { title: "Отличные условия!", phrase: "Редкое совпадение факторов. Бросайте дела — такой день пропускать нельзя." };
+}
+
+function seasonNote(fish, month, lat) {
+  const a = seasonActivity(fish, month, lat);
+  const names = ["январе","феврале","марте","апреле","мае","июне","июле","августе","сентябре","октябре","ноябре","декабре"];
+  if (a >= 0.8) return `пик сезона в ${names[month]}`;
+  if (a >= 0.5) return `рабочий месяц для этого вида`;
+  if (a >= 0.25) return `в ${names[month]} клёв слабее обычного`;
+  return `${names[month]} — не сезон`;
+}
+
+/* ---------- Почасовой прогноз активности на ближайшие сутки ---------- */
+function hourlyForecast(state, fish, sr, ss) {
+  const { weather, lat, lon } = state;
+  const out = [];
+  const month = weather.current.time.getMonth();
+  const season = seasonActivity(fish, month, lat);
+  const temp = tempScore(fish, state.waterTemp);
+  const moon = moonPhase(weather.current.time).score;
+
+  for (let i = weather.nowIdx; i < Math.min(weather.hours.length, weather.nowIdx + 24); i++) {
+    const h = weather.hours[i];
+    /* восход/закат соответствующего дня */
+    let sunR = sr, sunS = ss;
+    for (let d = 0; d < weather.daily.time?.length; d++) {
+      if (weather.daily.time[d] === h.time.slice(0, 10)) {
+        sunR = weather.daily.sunrise[d]; sunS = weather.daily.sunset[d]; break;
+      }
+    }
+    if (!sunR) { const st = sunTimes(h.date, lat, lon); sunR = st.sunrise; sunS = st.sunset; }
+
+    const periodS = fish.times[dayPeriod(h.date, sunR, sunS)] ?? 0.5;
+    const prev = weather.hours[Math.max(0, i - 24)];
+    const trendH = { delta: h.pressureMm - prev.pressureMm,
+      label: Math.abs(h.pressureMm - prev.pressureMm) < 2 ? "стабильно" :
+             h.pressureMm - prev.pressureMm <= -5 ? "резко падает" :
+             h.pressureMm - prev.pressureMm < 0 ? "падает" :
+             h.pressureMm - prev.pressureMm >= 5 ? "резко растёт" : "растёт" };
+
+    const score =
+      0.30 * periodS +
+      0.20 * season +
+      0.16 * temp +
+      0.14 * pressureScore(trendH, h.pressureMm) +
+      0.10 * windScore(h.wind, weather.current.windDir, fish) +
+      0.06 * skyScore(h.clouds, h.precip, state.waterTemp) +
+      0.04 * moon;
+
+    out.push({
+      date: h.date,
+      hour: h.date.getHours(),
+      score: Math.round(score * 100),
+      isDawn: sunR && Math.abs(h.date - sunR) < 5400000,
+      isDusk: sunS && Math.abs(h.date - sunS) < 5400000,
+    });
+  }
+  return out;
+}
+
+/* ---------- Ранжирование насадок ---------- */
+function rankBaits(state) {
+  const fish = FISHES[state.fishId];
+  const waterT = state.waterTemp ?? 15;
+  const cold = waterT < 11, warm = waterT > 18;
+  const owned = new Set(state.baitsOwned || []);
+  const list = [];
+
+  for (const [id, base] of Object.entries(fish.baits)) {
+    const bait = BAITS[id];
+    if (!bait) continue;
+    let s = base;
+
+    /* Сезонно-температурная поправка по категории */
+    if (bait.cat === "animal") s *= cold ? 1.3 : warm ? 0.85 : 1.05;
+    if (bait.cat === "plant")  s *= cold ? 0.55 : warm ? 1.18 : 0.95;
+    if (bait.cat === "live")   s *= cold ? 1.15 : 1;
+    if (bait.cat === "artificial") {
+      /* активному хищнику в тёплой воде — быстрее и ярче, в холодной — джиг */
+      if (cold && (id === "spinner" || id === "wobbler")) s *= 0.8;
+      if (cold && id === "jig") s *= 1.15;
+    }
+
+    /* Совместимость со снастью */
+    const compat = bait.tackle.includes(state.tackle);
+    if (!compat) s *= 0.15;
+
+    /* Имеющиеся у рыбака — лёгкий приоритет при равных */
+    if (owned.size && owned.has(id)) s *= 1.12;
+
+    s = Math.min(1, s);
+    list.push({
+      id, name: bait.name, em: bait.em, cat: bait.cat,
+      score: s, owned: owned.has(id), compat,
+      why: baitWhy(bait, fish, cold, warm, compat),
+    });
+  }
+
+  list.sort((a, b) => b.score - a.score);
+  return list;
+}
+
+function baitWhy(bait, fish, cold, warm, compat) {
+  if (!compat) return `рабочая по ${fish.name.toLowerCase()}, но под другую снасть`;
+  if (bait.cat === "animal") return cold ? "в холодной воде животная насадка вне конкуренции" : "стабильная классика по этой рыбе";
+  if (bait.cat === "plant") return warm ? "тёплая вода — время растительных насадок" : "рабочий вариант, докармливайте точку";
+  if (bait.cat === "live") return "естественный корм хищника — максимум доверия";
+  return cold ? "в холодной воде — медленная ступенька у дна" : "по активной рыбе — то, что нужно";
+}
+
+/* ---------- «Посоветуйте сами»: лучшие виды для условий ---------- */
+function adviseFish(state, candidates) {
+  const scored = candidates
+    .map(id => ({ id, a: fishActivityNow(id, {
+      water: state.water, lat: state.lat, month: state.weather.current.time.getMonth(),
+      waterTemp: state.waterTemp, now: state.weather.current.time,
+      sunrise: state.weather.daily.sunrise[7] || null, sunset: state.weather.daily.sunset[7] || null,
+    })}))
+    .filter(x => x.a)
+    .sort((a, b) => b.a.score - a.a.score);
+  return scored.length ? scored[0].id : null;
+}
+
+/* ---------- Тактика ---------- */
+function buildTactics(state, bite) {
+  const fish = FISHES[state.fishId];
+  const cur = state.weather.current;
+  const t = [];
+  const fmt = (d) => d ? d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "—";
+
+  /* Место */
+  const liked = fish.habitat.filter(h => state.features.includes(h));
+  const habNames = { reeds: "у стены камыша", lilies: "у кувшинок и окон травы", snags: "возле коряг",
+    dropoff: "на бровке у свала в яму", flat: "на ровном поливе", bridge: "у опор и укрытий" };
+  let placeTxt;
+  if (liked.length) {
+    placeTxt = `Вы отметили подходящие ориентиры: ловите ${liked.map(h => habNames[h]).join(" или ")}. `;
+  } else {
+    placeTxt = `Ищите ${fish.habitat.map(h => habNames[h]).slice(0, 2).join(" или ")}. `;
+  }
+  const dPref = fish.depth[state.depth] ?? 0.5;
+  if (dPref < 0.35) {
+    const best = Object.entries(fish.depth).sort((a, b) => b[1] - a[1])[0][0];
+    placeTxt += `Выбранная глубина (${DEPTHS[state.depth].short}) — не лучшая для ${fish.name.toLowerCase()}: при возможности сместитесь на ${DEPTHS[best].short.replace("место","")}.`;
+  } else {
+    placeTxt += `Глубина выбрана удачно.`;
+  }
+  t.push({ icon: "📍", title: "Точка", text: placeTxt });
+
+  /* Время */
+  const top = [...bite.hourly].sort((a, b) => b.score - a.score).slice(0, 3)
+    .sort((a, b) => a.date - b.date);
+  const windows = top.map(h => `${String(h.hour).padStart(2, "0")}:00`).join(", ");
+  t.push({ icon: "⏰", title: "Лучшее время",
+    text: `Пики активности в ближайшие сутки: ${windows}. Восход ${fmt(bite.sunrise)}, закат ${fmt(bite.sunset)} — зорьки у ${fish.name.toLowerCase()} ${fish.times.dawn >= 0.8 || fish.times.dusk >= 0.8 ? "обязательны к облову" : "работают слабее, чем у других рыб"}.` });
+
+  /* Прикормка / подача по снасти */
+  if (state.tackle === "float" || state.tackle === "feeder") {
+    const heavy = state.water === "river_big" || state.water === "canal" || state.water === "river_small";
+    t.push({ icon: "🥣", title: "Прикормка",
+      text: `Стартовый закорм — ${state.tackle === "feeder" ? "8–10 кормушек в темпе" : "5–6 шаров с горохом и грунтом"}${heavy ? ", смесь тяжёлая и вязкая — течение размывает лёгкую" : ", смесь рассыпчатая, пылящая"}. Докорм каждые 15–20 минут малыми порциями${state.waterTemp != null && state.waterTemp < 11 ? "; в холодной воде корма меньше, ароматики почти ноль" : ""}.` });
+  }
+  const presentTxt = {
+    float: `Спуск выставьте так, чтобы насадка касалась дна или висела в 2–3 см. Перезабрасывайте каждые 5–7 минут, играйте насадкой — лёгкое подтягивание часто провоцирует поклёвку.`,
+    feeder: `Заклипсуйтесь по ориентиру и кладите кормушку в одну точку. Перезаброс каждые 5–8 минут, поводок начните с 60 см и удлиняйте при пустых поклёвках.`,
+    spinning: state.waterTemp != null && state.waterTemp < 11
+      ? `Вода холодная: медленная ступенчатая проводка у дна, паузы до 3–4 секунд. Облавливайте бровки и коряги веером, не задерживаясь на пустом месте дольше 15 минут.`
+      : `Рыба активна: начните с равномерной проводки и агрессивного твичинга вдоль травы, затем — ступенька по свалам. Смена приманки каждые 15–20 забросов без контакта.`,
+    livebait: `Живца ставьте в полводы у кромки травы или на верхней границе свала. Проверяйте бодрость живца каждые 30–40 минут, поклёвку не форсируйте — дайте размотать.`,
+  };
+  t.push({ icon: "🎯", title: "Подача", text: presentTxt[state.tackle] });
+
+  /* Погодная поправка */
+  let wTxt;
+  const warmWater = state.waterTemp != null && state.waterTemp >= 15;
+  if (cur.windMs >= 3) {
+    wTxt = warmWater
+      ? `Ветер ${cur.windMs.toFixed(0)} м/с (${windDirName(cur.windDir)}): волна сносит корм к прибойному берегу — летом бель часто кормится именно там, попробуйте ловить «в ветер», накоротке.`
+      : `Ветер ${cur.windMs.toFixed(0)} м/с (${windDirName(cur.windDir)}): в холодной воде ищите затишье — подветренный берег и заливы, там рыбе комфортнее.`;
+  } else {
+    wTxt = `Почти штиль: вода прозрачнее обычного — тоньше поводки, дальше точка, тише на берегу.`;
+  }
+  if (bite.trend.label.includes("резко")) {
+    wTxt += ` Давление ${bite.trend.label} — клёв может выключаться: ловите выходы, а не ждите равномерного клёва.`;
+  }
+  t.push({ icon: "🌬", title: "Поправка на погоду", text: wTxt });
+
+  /* Честное предупреждение */
+  if (bite.pct < 30) {
+    t.push({ icon: "💡", title: "Честный совет",
+      text: `Прогноз слабый. Реальнее всего сейчас ${altFishText(state)}. Либо перенесите выезд на ближайший пик из графика выше.` });
+  }
+  return t;
+}
+
+function altFishText(state) {
+  const ids = Object.keys(FISHES).filter(id => id !== state.fishId);
+  const best = adviseFish(state, ids);
+  return best ? `сменить цель на ${FISHES[best].name.toLowerCase()}` : "сменить водоём";
+}
+
+/* ---------- Сводка ---------- */
+function buildSummary(state, bite) {
+  const fish = FISHES[state.fishId];
+  const bait = bite.baits.find(b => b.compat) || bite.baits[0];
+  const top = [...bite.hourly].sort((a, b) => b.score - a.score)[0];
+  return {
+    fish: fish.name,
+    water: WATERS[state.water].name,
+    bait: bait ? `${bait.em} ${bait.name}` : "—",
+    tackle: TACKLE[state.tackle].name,
+    bestHour: top ? `${String(top.hour).padStart(2, "0")}:00` : "—",
+    pct: bite.pct,
+  };
+}
+
+/* ===== charts.js ===== */
+/* ============================================================
+   КлёвГид — анимированные SVG-графики.
+   Линии рисуются через трюк pathLength=1 (dashoffset 1→0),
+   бары растут scaleY, числа считаются через rAF.
+   ============================================================ */
+
+/* ---------- Утилиты ---------- */
+function animateCount(el, to, ms = 1300, suffix = "") {
+  const t0 = performance.now();
+  const ease = (x) => 1 - Math.pow(1 - x, 3);
+  function tick(t) {
+    const p = Math.min(1, (t - t0) / ms);
+    el.textContent = Math.round(to * ease(p)) + suffix;
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function lin(v, d0, d1, r0, r1) { return r0 + (v - d0) / (d1 - d0 || 1) * (r1 - r0); }
+
+function colorFor(pct) {
+  if (pct >= 62) return "#4f8a3d";
+  if (pct >= 42) return "#8a9a3d";
+  if (pct >= 22) return "#c08a2d";
+  return "#b34a3c";
+}
+
+/* ---------- Большой полукруговой индикатор шанса клёва ---------- */
+function gaugeSVG(pct) {
+  const color = colorFor(pct);
+  const frac = pct / 100;
+  return `
+  <svg viewBox="0 0 240 150" style="width:min(320px,100%)" role="img" aria-label="Шанс клёва ${pct}%">
+    <defs>
+      <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#b34a3c"/><stop offset="45%" stop-color="#c08a2d"/>
+        <stop offset="75%" stop-color="#8a9a3d"/><stop offset="100%" stop-color="#4f8a3d"/>
+      </linearGradient>
+    </defs>
+    <path d="M28,132 A92,92 0 0 1 212,132" fill="none" stroke="#edeadf" stroke-width="17" stroke-linecap="round"/>
+    <path d="M28,132 A92,92 0 0 1 212,132" fill="none" stroke="url(#gaugeGrad)" stroke-width="17"
+      stroke-linecap="round" pathLength="1"
+      stroke-dasharray="${frac} 1"
+      style="stroke-dashoffset:${frac}; animation: gaugeSweep 1.5s cubic-bezier(.22,.8,.36,1) .15s forwards;"/>
+    <style>@keyframes gaugeSweep { to { stroke-dashoffset: 0; } }</style>
+    <text class="gauge-num" x="120" y="112" text-anchor="middle" font-size="46" data-gauge-num>0%</text>
+    <text x="120" y="134" text-anchor="middle" font-size="11.5" fill="#8f8b7c" font-family="Inter,sans-serif">шанс клёва сейчас</text>
+    <circle cx="28" cy="132" r="3.4" fill="#b34a3c"/><circle cx="212" cy="132" r="3.4" fill="#4f8a3d"/>
+  </svg>`;
+}
+
+/* ---------- Почасовой график активности (24 ч) ---------- */
+function hourlyChartSVG(hourly) {
+  const W = 760, H = 210, padL = 34, padB = 30, padT = 26;
+  const bw = (W - padL - 14) / hourly.length;
+  let bars = "", labels = "", marks = "";
+
+  hourly.forEach((h, i) => {
+    const x = padL + i * bw;
+    const bh = lin(h.score, 0, 100, 0, H - padB - padT);
+    const y = H - padB - bh;
+    const good = h.score >= 62;
+    const col = colorFor(h.score);
+    bars += `<rect class="bar-grow" style="animation-delay:${i * 38}ms"
+      x="${x + 2}" y="${y}" width="${bw - 5}" height="${Math.max(2, bh)}" rx="4"
+      fill="${col}" opacity="${good ? .95 : .6}"><title>${String(h.hour).padStart(2, "0")}:00 — ${h.score}%</title></rect>`;
+    if (h.hour % 3 === 0) labels += `<text class="axis-text" x="${x + bw / 2}" y="${H - 10}" text-anchor="middle">${h.hour}:00</text>`;
+    if (h.isDawn) marks += `<text x="${x + bw / 2}" y="${padT - 8}" text-anchor="middle" font-size="13" class="fade-late">🌅</text>`;
+    if (h.isDusk) marks += `<text x="${x + bw / 2}" y="${padT - 8}" text-anchor="middle" font-size="13" class="fade-late">🌇</text>`;
+  });
+
+  let grid = "";
+  for (const v of [25, 50, 75]) {
+    const y = H - padB - lin(v, 0, 100, 0, H - padB - padT);
+    grid += `<line class="grid-line" x1="${padL}" y1="${y}" x2="${W - 10}" y2="${y}" stroke-dasharray="3 5"/>
+      <text class="axis-text" x="${padL - 6}" y="${y + 3.5}" text-anchor="end">${v}</text>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%" role="img">${grid}${bars}${marks}${labels}</svg>`;
+}
+
+/* ---------- Линия (общая): ряд значений → svg path ---------- */
+function linePath(vals, x0, x1, y0, y1, vMin, vMax) {
+  return vals.map((v, i) => {
+    const x = lin(i, 0, vals.length - 1, x0, x1);
+    const y = lin(v, vMin, vMax, y0, y1);
+    return (i ? "L" : "M") + x.toFixed(1) + "," + y.toFixed(1);
+  }).join(" ");
+}
+
+/* ---------- Давление за 48 ч + прогноз ---------- */
+function pressureChartSVG(hours, nowIdx) {
+  const from = Math.max(0, nowIdx - 48), to = Math.min(hours.length - 1, nowIdx + 24);
+  const vals = hours.slice(from, to + 1).map(h => h.pressureMm);
+  const W = 360, H = 150, padL = 38, padR = 8, padT = 14, padB = 24;
+  let vMin = Math.min(...vals), vMax = Math.max(...vals);
+  if (vMax - vMin < 4) { vMin -= 2; vMax += 2; }
+
+  const d = linePath(vals, padL, W - padR, H - padB, padT, vMin, vMax);
+  const nowX = lin(nowIdx - from, 0, vals.length - 1, padL, W - padR);
+
+  let grid = "";
+  for (let i = 0; i <= 2; i++) {
+    const v = vMin + (vMax - vMin) * i / 2;
+    const y = lin(v, vMin, vMax, H - padB, padT);
+    grid += `<line class="grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke-dasharray="3 5"/>
+      <text class="axis-text" x="${padL - 5}" y="${y + 3.5}" text-anchor="end">${Math.round(v)}</text>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%" role="img">
+    ${grid}
+    <line x1="${nowX}" y1="${padT}" x2="${nowX}" y2="${H - padB}" stroke="#d97757" stroke-width="1.4" stroke-dasharray="4 4"/>
+    <text class="axis-text" x="${nowX}" y="${H - 8}" text-anchor="middle" fill="#bb5d3f">сейчас</text>
+    <path class="chart-line draw-line" d="${d}" stroke="#2e7d9a" pathLength="1" style="--len:1"/>
+    <text class="axis-text" x="${padL}" y="${H - 8}">−48 ч</text>
+    <text class="axis-text" x="${W - padR}" y="${H - 8}" text-anchor="end">+24 ч</text>
+  </svg>`;
+}
+
+/* ---------- Воздух и вода, 7 дней ---------- */
+function tempChartSVG(series) {
+  /* прореживаем до ~раз в 3 часа */
+  const pts = series.filter((_, i) => i % 3 === 0);
+  const air = pts.map(p => p.air), water = pts.map(p => p.water);
+  const W = 360, H = 150, padL = 30, padR = 8, padT = 14, padB = 24;
+  let vMin = Math.min(...air, ...water) - 1, vMax = Math.max(...air, ...water) + 1;
+
+  const dAir = linePath(air, padL, W - padR, H - padB, padT, vMin, vMax);
+  const dWater = linePath(water, padL, W - padR, H - padB, padT, vMin, vMax);
+
+  let grid = "";
+  for (let i = 0; i <= 2; i++) {
+    const v = vMin + (vMax - vMin) * i / 2;
+    const y = lin(v, vMin, vMax, H - padB, padT);
+    grid += `<line class="grid-line" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke-dasharray="3 5"/>
+      <text class="axis-text" x="${padL - 5}" y="${y + 3.5}" text-anchor="end">${Math.round(v)}°</text>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%" role="img">
+    ${grid}
+    <path class="chart-line draw-line" d="${dAir}" stroke="#c08a2d" stroke-width="2" pathLength="1" style="--len:1; opacity:.75"/>
+    <path class="chart-line draw-line" d="${dWater}" stroke="#2e7d9a" pathLength="1" style="--len:1; animation-delay:.3s"/>
+    <g class="fade-late" font-family="Inter,sans-serif" font-size="10.5">
+      <circle cx="${padL + 8}" cy="${padT + 2}" r="4" fill="#c08a2d"/><text x="${padL + 16}" y="${padT + 6}" fill="#5c594f">воздух</text>
+      <circle cx="${padL + 70}" cy="${padT + 2}" r="4" fill="#2e7d9a"/><text x="${padL + 78}" y="${padT + 6}" fill="#5c594f">вода (модель)</text>
+    </g>
+    <text class="axis-text" x="${padL}" y="${H - 8}">неделя назад</text>
+    <text class="axis-text" x="${W - padR}" y="${H - 8}" text-anchor="end">сегодня</text>
+  </svg>`;
+}
+
+/* ---------- Компас ветра ---------- */
+function windCompassSVG(deg, speed) {
+  /* стрелка показывает, КУДА дует ветер */
+  const to = (deg + 180) % 360;
+  let ticks = "";
+  for (let a = 0; a < 360; a += 45) {
+    const r1 = a % 90 === 0 ? 30 : 33, rad = (a - 90) * Math.PI / 180;
+    ticks += `<line x1="${40 + Math.cos(rad) * r1}" y1="${40 + Math.sin(rad) * r1}"
+      x2="${40 + Math.cos(rad) * 36}" y2="${40 + Math.sin(rad) * 36}" stroke="#c9c5b4" stroke-width="2"/>`;
+  }
+  const L = [["С", 40, 13], ["В", 68, 44], ["Ю", 40, 73], ["З", 12, 44]];
+  return `<svg viewBox="0 0 80 80" style="width:74px;height:74px" role="img" aria-label="Ветер ${speed} м/с">
+    <circle cx="40" cy="40" r="36" fill="#fcfbf8" stroke="#e7e4d8" stroke-width="2"/>${ticks}
+    ${L.map(([t, x, y]) => `<text x="${x}" y="${y}" text-anchor="middle" font-size="9" font-weight="700" fill="#8f8b7c" font-family="Inter,sans-serif">${t}</text>`).join("")}
+    <g class="compass-needle" data-wind-needle style="transform:rotate(${to}deg)">
+      <path d="M40,16 L46,46 L40,40 L34,46 Z" fill="#d97757"/>
+    </g>
+    <circle cx="40" cy="40" r="4" fill="#21201c"/>
+  </svg>`;
+}
+
+/* ---------- Фаза Луны ---------- */
+function moonSVG(frac) {
+  /* terminator: ширина эллипса = cos(2π·frac); правая сторона светится на росте */
+  const r = 26, cx = 32, cy = 32;
+  const cosw = Math.cos(2 * Math.PI * frac);
+  const rx = Math.abs(cosw) * r;
+  const waxing = frac < 0.5;
+  const light = "#f5edd8", dark = "#3d4351";
+
+  /* Полный диск тёмный, поверх — освещённая часть */
+  const big = `A ${r},${r} 0 1,${waxing ? 1 : 0} ${cx},${cy + r}`;
+  const inner = `A ${rx},${r} 0 1,${(waxing ? cosw > 0 : cosw < 0) ? 0 : 1} ${cx},${cy - r}`;
+  return `<svg viewBox="0 0 64 64" style="width:58px;height:58px" role="img">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${dark}"/>
+    <path d="M ${cx},${cy - r} ${big} ${inner} Z" fill="${light}"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#d8d4c4" stroke-width="1.5"/>
+    <circle cx="${cx - 8}" cy="${cy - 6}" r="2.6" fill="rgba(0,0,0,.08)"/>
+    <circle cx="${cx + 6}" cy="${cy + 8}" r="3.4" fill="rgba(0,0,0,.07)"/>
+  </svg>`;
+}
+
+/* ---------- Силуэты рыб ---------- */
+const FISH_SHAPES = {
+  carp: `M8,32 C16,16 38,10 58,14 C70,8 76,6 82,8 C80,13 78,17 78,20 C84,24 88,28 88,32 C88,36 84,40 78,44 C78,47 80,51 82,56 C76,58 70,56 58,50 C38,54 16,48 8,32 Z
+         M58,14 C54,22 54,42 58,50`,
+  bream: `M14,32 C20,10 40,4 52,10 C60,4 64,3 68,4 C67,8 66,12 66,15 C74,20 80,26 80,32 C80,38 74,44 66,49 C66,52 67,56 68,60 C64,61 60,60 52,54 C40,60 20,54 14,32 Z`,
+  roach: `M10,32 C18,20 36,14 54,17 C64,12 70,10 76,11 C74,15 73,19 73,22 C79,25 83,28 83,32 C83,36 79,39 73,42 C73,45 74,49 76,53 C70,54 64,52 54,47 C36,50 18,44 10,32 Z`,
+  pike: `M4,32 C10,26 30,22 52,23 C64,20 74,16 84,12 C82,18 81,24 82,28 C86,29 88,30 88,32 C88,34 86,35 82,36 C81,40 82,46 84,52 C74,48 64,44 52,41 C30,42 10,38 4,32 Z`,
+  perch: `M10,34 C16,18 34,10 52,14 C60,8 66,6 72,7 C71,11 70,15 70,18 C76,22 80,27 80,32 C80,37 76,42 70,46 C70,49 71,53 72,57 C66,58 60,56 52,50 C34,54 16,48 10,34 Z
+          M38,14 L40,50 M50,13 L52,50 M62,16 L63,47`,
+  catfish: `M6,30 C14,18 30,14 48,18 C62,14 76,16 86,24 C88,28 88,34 86,38 C76,46 62,48 48,44 C30,48 14,44 6,30 Z
+            M14,24 L2,14 M14,36 L2,46 M20,22 L16,12`,
+  asp: `M8,32 C16,22 36,18 56,20 C66,14 72,12 78,13 C76,17 75,21 75,24 C81,27 85,30 85,32 C85,34 81,37 75,40 C75,43 76,47 78,51 C72,52 66,50 56,44 C36,46 16,42 8,32 Z`,
+  burbot: `M6,32 C12,24 26,20 44,22 C60,18 74,20 84,26 C87,29 87,35 84,38 C74,44 60,46 44,42 C26,44 12,40 6,32 Z
+           M16,26 L12,18 M22,38 L20,46`,
+};
+
+function fishSVG(shape, hue) {
+  const d = FISH_SHAPES[shape] || FISH_SHAPES.roach;
+  const paths = d.split("M").filter(Boolean);
+  const body = "M" + paths[0];
+  const extra = paths.slice(1).map(p => `<path d="M${p}" stroke="rgba(0,0,0,.25)" stroke-width="1.6" fill="none"/>`).join("");
+  return `<svg viewBox="0 0 96 64" role="img">
+    <path d="${body}" fill="${hue}" opacity=".9"/>
+    <path d="${body}" fill="none" stroke="rgba(0,0,0,.2)" stroke-width="1.4"/>
+    ${extra}
+    <circle cx="22" cy="29" r="2.6" fill="#fff"/><circle cx="22.7" cy="29" r="1.3" fill="#21201c"/>
+  </svg>`;
+}
+
+/* ---------- Иконки водоёмов ---------- */
+const WATER_ICONS = {
+  pond: `<ellipse cx="27" cy="32" rx="20" ry="13" fill="#7db4c9"/><ellipse cx="27" cy="32" rx="20" ry="13" fill="none" stroke="#2e6f8c" stroke-width="2"/>
+    <path d="M40,22 q3,-8 1,-12 M44,24 q4,-6 3,-10" stroke="#5d7a3a" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+  lake: `<path d="M8,32 C8,20 20,14 30,16 C42,12 48,22 46,30 C50,38 38,46 26,44 C14,46 8,40 8,32 Z" fill="#7db4c9" stroke="#2e6f8c" stroke-width="2"/>
+    <path d="M16,30 q4,-2 8,0 M28,34 q4,-2 8,0" stroke="#fff" stroke-width="1.6" fill="none" opacity=".7"/>`,
+  riverS: `<path d="M6,44 C14,36 12,28 20,22 C28,16 30,12 34,6 L44,10 C38,18 36,22 30,28 C24,34 26,40 16,48 Z" fill="#7db4c9" stroke="#2e6f8c" stroke-width="2"/>
+    <circle cx="22" cy="30" r="2" fill="#cfd8d2"/><circle cx="28" cy="22" r="1.7" fill="#cfd8d2"/>`,
+  riverB: `<path d="M4,40 C16,34 22,34 32,26 C40,20 44,16 50,12 L50,24 C42,28 38,32 30,38 C22,44 14,46 4,50 Z" fill="#7db4c9" stroke="#2e6f8c" stroke-width="2"/>
+    <path d="M14,40 l8,-4 M26,32 l8,-5" stroke="#fff" stroke-width="1.8" opacity=".7"/>`,
+  oxbow: `<path d="M12,12 C30,8 46,18 44,32 C42,44 30,48 22,46 C28,42 36,40 37,31 C38,20 26,14 12,18 Z" fill="#7db4c9" stroke="#2e6f8c" stroke-width="2"/>
+    <path d="M14,24 q3,-6 1,-10" stroke="#5d7a3a" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+  reservoir: `<path d="M8,26 C18,18 36,18 48,24 L48,40 L8,40 Z" fill="#7db4c9" stroke="#2e6f8c" stroke-width="2"/>
+    <rect x="44" y="14" width="6" height="28" rx="2" fill="#c9c2b2" stroke="#a89f8a" stroke-width="1.6"/>`,
+  canal: `<path d="M18,6 L38,6 L34,48 L22,48 Z" fill="#7db4c9" stroke="#2e6f8c" stroke-width="2"/>
+    <path d="M24,14 h8 M23,26 h9 M23,38 h9" stroke="#fff" stroke-width="1.6" opacity=".7"/>`,
+};
+function waterIconSVG(key) {
+  return `<svg class="tile-icon" viewBox="0 0 56 56">${WATER_ICONS[key] || WATER_ICONS.lake}</svg>`;
+}
+
+/* ===== spotmaps.js ===== */
+/* ============================================================
+   КлёвГид — схематичные карты точек ловли (SVG, вид сверху).
+   Камыш, кувшинки, коряги, бровки, течение, рыболов и точка
+   заброса ✕ с пульсацией. Подбор схем — по типу водоёма,
+   повадкам рыбы и отмеченным ориентирам.
+   ============================================================ */
+
+
+/* ---------- Палитра воды и берега ---------- */
+const C = {
+  shallow: "#a9cfdd", mid: "#7db4c9", deep: "#4a90ad", deepest: "#2e6f8c",
+  sand: "#e9dcb4", grass: "#b9cb90", grass2: "#a3bd7c",
+  reed: "#5d7a3a", reedHead: "#8a6a3d", lily: "#5f9d5f", lilyFlower: "#f3e9ef",
+  snag: "#7a5b3e", ink: "#1d3d4d", cast: "#e8553d", label: "#10455c",
+};
+
+/* ---------- Базовые элементы ---------- */
+
+function defsBlock(id) {
+  return `<defs>
+    <linearGradient id="wg${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${C.deepest}"/><stop offset="45%" stop-color="${C.deep}"/>
+      <stop offset="78%" stop-color="${C.mid}"/><stop offset="100%" stop-color="${C.shallow}"/>
+    </linearGradient>
+    <linearGradient id="wgr${id}" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="${C.shallow}"/><stop offset="35%" stop-color="${C.mid}"/>
+      <stop offset="70%" stop-color="${C.deep}"/><stop offset="100%" stop-color="${C.deepest}"/>
+    </linearGradient>
+  </defs>`;
+}
+
+/* Камышовый куст из нескольких стеблей (классы sway — покачивание) */
+function reeds(x, y, n = 5, s = 1, swayClass = "sway") {
+  let out = `<g transform="translate(${x},${y}) scale(${s})">`;
+  const dx = [-8, -3, 2, 7, 12, -12, 16];
+  for (let i = 0; i < n; i++) {
+    const h = 26 + (i * 7) % 12;
+    out += `<g class="${swayClass}${i % 3 ? " s" + ((i % 3) + 1) : ""}">
+      <path d="M${dx[i]},0 q${i % 2 ? 3 : -3},-${h * 0.6} ${i % 2 ? 1 : -1},-${h}" stroke="${C.reed}" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      <ellipse cx="${dx[i] + (i % 2 ? 1 : -1)}" cy="${-h - 3}" rx="2.6" ry="7" fill="${C.reedHead}"/>
+    </g>`;
+  }
+  return out + "</g>";
+}
+
+/* Кувшинки */
+function lilies(x, y, n = 6, spread = 30) {
+  let out = `<g transform="translate(${x},${y})" class="fish-bob">`;
+  const px = [0, 14, -16, 26, -28, 8, -6, 22], py = [0, 7, 5, -4, -8, -12, 12, 10];
+  for (let i = 0; i < n; i++) {
+    const lx = px[i] * spread / 30, ly = py[i] * spread / 30;
+    out += `<ellipse cx="${lx}" cy="${ly}" rx="8.5" ry="4.6" fill="${C.lily}" opacity=".92"/>
+      <path d="M${lx},${ly} l7,-2.6" stroke="${C.shallow}" stroke-width="1.6"/>`;
+    if (i % 3 === 0) out += `<circle cx="${lx - 3}" cy="${ly - 2}" r="2" fill="${C.lilyFlower}"/>`;
+  }
+  return out + "</g>";
+}
+
+/* Коряги */
+function snags(x, y, s = 1) {
+  return `<g transform="translate(${x},${y}) scale(${s})" stroke="${C.snag}" stroke-width="3" stroke-linecap="round" fill="none" opacity=".85">
+    <path d="M-20,6 L8,-4 M-4,0 L2,-14 M8,-4 L26,2 M14,-1 L20,-12"/>
+    <path d="M-14,16 L18,13 M0,14 L-6,4" stroke-width="2.4" opacity=".7"/>
+  </g>`;
+}
+
+/* Стрелки течения */
+function flow(x1, x2, y, n = 3, gap = 16, color = "rgba(255,255,255,.5)") {
+  let out = "";
+  for (let i = 0; i < n; i++) {
+    out += `<line class="flow-dash" x1="${x1}" y1="${y + i * gap}" x2="${x2}" y2="${y + i * gap}" stroke="${color}" stroke-width="2"/>
+    <path d="M${x2},${y + i * gap} l-7,-3.4 v6.8 z" fill="${color}"/>`;
+  }
+  return out;
+}
+
+/* Рябь на воде */
+function ripples(x, y) {
+  return `<g class="ripple-drift" stroke="rgba(255,255,255,.4)" stroke-width="1.4" fill="none" stroke-linecap="round">
+    <path d="M${x},${y} q6,-3 12,0 t12,0"/><path d="M${x + 40},${y + 14} q6,-3 12,0 t12,0"/>
+    <path d="M${x - 24},${y + 22} q6,-3 12,0 t12,0"/></g>`;
+}
+
+/* Рыболов на берегу */
+function angler(x, y, flip = 1) {
+  return `<g transform="translate(${x},${y}) scale(${flip},1)">
+    <circle cx="0" cy="-13" r="4.2" fill="${C.ink}"/>
+    <path d="M0,-9 L0,2 M0,-6 L8,-10 M0,2 L-4,10 M0,2 L5,9" stroke="${C.ink}" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+    <path d="M8,-10 L30,-26" stroke="#6b4f2f" stroke-width="2" stroke-linecap="round"/>
+  </g>`;
+}
+
+/* Точка заброса: пульсирующий ✕ */
+function castPoint(x, y, label = "") {
+  return `<g>
+    <circle class="cast-pulse" cx="${x}" cy="${y}" r="13" fill="none" stroke="${C.cast}" stroke-width="2.5"/>
+    <circle class="cast-pulse" cx="${x}" cy="${y}" r="13" fill="none" stroke="${C.cast}" stroke-width="2" style="animation-delay:1s"/>
+    <path d="M${x - 7},${y - 7} L${x + 7},${y + 7} M${x + 7},${y - 7} L${x - 7},${y + 7}" stroke="${C.cast}" stroke-width="4.4" stroke-linecap="round"/>
+    ${label ? `<rect x="${x - 34}" y="${y + 13}" width="68" height="16" rx="8" fill="rgba(16,69,92,.85)"/>
+    <text x="${x}" y="${y + 24.5}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff" font-family="Inter,sans-serif">${label}</text>` : ""}
+  </g>`;
+}
+
+/* Траектория заброса */
+function castArc(x1, y1, x2, y2) {
+  const mx = (x1 + x2) / 2, my = Math.min(y1, y2) - 26;
+  return `<path d="M${x1},${y1} Q${mx},${my} ${x2},${y2}" fill="none" stroke="rgba(232,85,61,.55)" stroke-width="1.8" stroke-dasharray="5 6"/>`;
+}
+
+/* Подпись глубины */
+function depthLabel(x, y, txt, light = true) {
+  return `<text x="${x}" y="${y}" font-size="10" font-style="italic" fill="${light ? "rgba(255,255,255,.85)" : C.label}" font-family="Lora,serif">${txt}</text>`;
+}
+
+/* Берег снизу */
+function shoreBottom(withGrass = true) {
+  return `<path d="M0,206 Q90,198 180,206 T360,204 L360,250 L0,250 Z" fill="${C.sand}"/>
+  ${withGrass ? `<path d="M0,206 Q90,198 180,206 T360,204 L360,214 Q270,208 180,214 T0,216 Z" fill="${C.grass}" opacity=".9"/>` : ""}`;
+}
+
+/* Масштабная линейка */
+function scaleBar(metersPer100px = 12) {
+  return `<g transform="translate(12,238)">
+    <line x1="0" y1="0" x2="50" y2="0" stroke="${C.ink}" stroke-width="2"/>
+    <line x1="0" y1="-3" x2="0" y2="3" stroke="${C.ink}" stroke-width="2"/>
+    <line x1="50" y1="-3" x2="50" y2="3" stroke="${C.ink}" stroke-width="2"/>
+    <text x="56" y="3.4" font-size="9" fill="${C.ink}" font-family="Inter,sans-serif">≈ ${Math.round(metersPer100px / 2)} м</text>
+  </g>`;
+}
+
+function wrap(id, inner) {
+  return `<svg viewBox="0 0 360 250" xmlns="http://www.w3.org/2000/svg" role="img">${defsBlock(id)}${inner}</svg>`;
+}
+
+/* ---------- Профиль глубины (вид сбоку) ---------- */
+function profileSVG(kind) {
+  const bottoms = {
+    dropoff: "M0,34 L60,36 Q110,38 150,52 Q175,62 195,74 L240,80 Q300,84 360,84",
+    pit:     "M0,36 L80,40 Q140,44 170,62 Q200,82 250,84 Q310,86 360,80",
+    shelf:   "M0,34 L90,36 Q140,38 170,48 L230,52 Q260,56 290,70 L360,74",
+  };
+  const d = bottoms[kind] || bottoms.dropoff;
+  return `<svg viewBox="0 0 360 100" xmlns="http://www.w3.org/2000/svg" style="margin-top:10px;border-radius:10px;background:linear-gradient(#cfe4ec,#9cc4d4)">
+    <path d="M0,16 q20,-4 40,0 t40,0 t40,0 t40,0 t40,0 t40,0 t40,0 t40,0 t40,0" stroke="rgba(255,255,255,.7)" stroke-width="2" fill="none" class="ripple-drift"/>
+    <path d="${d} L360,100 L0,100 Z" fill="#8a6f4d"/>
+    <path d="${d}" stroke="#6b5538" stroke-width="2.5" fill="none"/>
+    <circle cx="196" cy="72" r="5" fill="${C.cast}"/>
+    <circle cx="196" cy="72" r="9" fill="none" stroke="${C.cast}" stroke-width="1.6" class="cast-pulse"/>
+    <text x="196" y="60" text-anchor="middle" font-size="9.5" font-weight="700" fill="#0e3a4e" font-family="Inter,sans-serif">оснастка здесь</text>
+    <text x="14" y="30" font-size="9" font-style="italic" fill="#0e3a4e" font-family="Lora,serif">берег</text>
+    <text x="318" y="78" font-size="9" font-style="italic" fill="#fff" font-family="Lora,serif">яма</text>
+    <text x="150" y="44" font-size="9" font-style="italic" fill="#fff" font-family="Lora,serif">свал</text>
+  </svg>`;
+}
+
+/* ============================================================
+   ШАБЛОНЫ ТОЧЕК
+   ============================================================ */
+
+const TEMPLATES = {
+  /* --- Кромка камыша --- */
+  reeds_edge: {
+    tags: ["reeds"], waters: ["pond", "lake", "oxbow", "reservoir", "river_small"],
+    title: "Кромка камыша",
+    desc: (f, d) => `Рыба патрулирует границу зарослей. Забрасывайте вдоль стены камыша в ${d}, насадка — у самого края, но не в гущу: иначе не вытащить.`,
+    meta: (dist) => [`заброс ${dist}`, "глубина 1–2 м", "тихая подача"],
+    profile: null,
+    svg(id, dist) {
+      return wrap(id, `
+        <rect width="360" height="250" fill="url(#wg${id})"/>
+        ${depthLabel(150, 36, "3 м и глубже")} ${depthLabel(165, 120, "1,5–2 м")}
+        ${ripples(120, 60)} ${ripples(230, 96)}
+        ${shoreBottom()}
+        ${reeds(38, 200, 6, 1.15)} ${reeds(86, 196, 5, 1)} ${reeds(128, 199, 6, 1.05)}
+        ${reeds(300, 198, 6, 1.1)} ${reeds(338, 202, 4, .95)}
+        ${snags(330, 120, .8)}
+        ${castArc(208, 196, 168, 158)}
+        ${castPoint(168, 158, dist)}
+        ${depthLabel(40, 168, "стена камыша", true)}
+        ${angler(212, 196)}
+        ${scaleBar()}
+      `);
+    },
+  },
+
+  /* --- Окно в кувшинках --- */
+  lily_window: {
+    tags: ["lilies"], waters: ["oxbow", "pond", "lake"],
+    title: "Окно среди кувшинок",
+    desc: (f) => `Классика по ${f}: чистое «окно» в траве. Опускайте насадку точно в просвет, поклёвка обычно сразу. Вываживание форсированное, не давайте уйти в траву.`,
+    meta: (dist) => [`заброс ${dist}`, "глубина до 1,5 м", "зорьки"],
+    profile: null,
+    svg(id, dist) {
+      return wrap(id, `
+        <rect width="360" height="250" fill="url(#wg${id})"/>
+        ${depthLabel(20, 30, "2,5 м")} ${depthLabel(30, 120, "1–1,5 м")}
+        ${ripples(60, 56)}
+        ${lilies(120, 120, 8, 36)} ${lilies(238, 100, 7, 32)} ${lilies(70, 160, 6, 26)}
+        ${lilies(296, 158, 6, 28)} ${lilies(180, 176, 5, 22)}
+        ${shoreBottom()}
+        ${reeds(330, 200, 5, 1)}
+        ${castArc(150, 198, 178, 138)}
+        ${castPoint(178, 138, dist)}
+        ${depthLabel(160, 116, "окно", true)}
+        ${angler(146, 198, -1)}
+        ${scaleBar()}
+      `);
+    },
+  },
+
+  /* --- Бровка / свал --- */
+  dropoff: {
+    tags: ["dropoff", "flat"], waters: ["reservoir", "lake", "river_big", "canal", "pond"],
+    title: "Бровка — свал в глубину",
+    desc: (f) => `Подводная «ступенька» — столовая ${f}: корм скатывается по свалу и задерживается у его основания. Точка — нижняя кромка бровки.`,
+    meta: (dist) => [`заброс ${dist}`, "свал 2 → 4 м", "прикормка обязательна"],
+    profile: "dropoff",
+    svg(id, dist) {
+      return wrap(id, `
+        <rect width="360" height="250" fill="url(#wg${id})"/>
+        <path d="M0,96 Q120,82 220,96 T360,88" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-dasharray="7 6"/>
+        <path d="M0,148 Q130,136 230,148 T360,142" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.6" stroke-dasharray="5 6"/>
+        ${depthLabel(18, 40, "4–5 м")} ${depthLabel(22, 126, "2–3 м")} ${depthLabel(26, 182, "до 1,5 м")}
+        ${depthLabel(258, 90, "верх бровки", true)}
+        ${ripples(150, 50)}
+        ${shoreBottom()}
+        ${reeds(40, 200, 5, 1)}
+        ${castArc(192, 198, 218, 110)}
+        ${castPoint(218, 110, dist)}
+        ${angler(188, 198, -1)}
+        ${scaleBar(20)}
+      `);
+    },
+  },
+
+  /* --- Коряжник --- */
+  snag_field: {
+    tags: ["snags"], waters: ["oxbow", "river_small", "river_big", "pond", "reservoir", "lake"],
+    title: "У коряжника",
+    desc: (f) => `Коряги — дом для ${f}. Ловите по кромке завала: насадка в 2–3 м от веток. Поводки ставьте прочнее, зацепы здесь — плата за поклёвки.`,
+    meta: (dist) => [`заброс ${dist}`, "у кромки коряг", "прочная оснастка"],
+    profile: null,
+    svg(id, dist) {
+      return wrap(id, `
+        <rect width="360" height="250" fill="url(#wg${id})"/>
+        ${depthLabel(20, 34, "3–4 м")} ${depthLabel(26, 140, "2 м")}
+        ${snags(96, 86, 1.25)} ${snags(150, 64, 1)} ${snags(196, 96, 1.15)} ${snags(126, 116, .9)}
+        <ellipse cx="150" cy="92" rx="86" ry="48" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.6" stroke-dasharray="4 6"/>
+        ${depthLabel(108, 152, "кромка завала", true)}
+        ${ripples(268, 70)}
+        ${shoreBottom()}
+        ${reeds(320, 200, 6, 1.05)}
+        ${castArc(232, 198, 236, 130)}
+        ${castPoint(236, 130, dist)}
+        ${angler(228, 198)}
+        ${scaleBar()}
+      `);
+    },
+  },
+
+  /* --- Речной поворот с омутом --- */
+  river_bend: {
+    tags: ["dropoff", "snags"], waters: ["river_small", "river_big"],
+    title: "Поворот реки — омут",
+    desc: (f) => `На повороте струя бьёт во внешний берег и роет яму. ${f[0].toUpperCase() + f.slice(1)} стоит на границе течения и тиховодья — туда и подавайте.`,
+    meta: (dist) => [`заброс ${dist}`, "внешний берег глубже", "граница струи"],
+    profile: "pit",
+    svg(id, dist) {
+      return wrap(id, `
+        <rect width="360" height="250" fill="${C.grass2}"/>
+        <path d="M0,250 L0,120 Q60,40 180,44 Q300,48 360,16 L360,140 Q290,170 200,160 Q90,150 70,250 Z" fill="url(#wgr${id})"/>
+        <path d="M0,120 Q60,40 180,44 Q300,48 360,16" fill="none" stroke="${C.grass}" stroke-width="5"/>
+        <path d="M0,250 L70,250 Q90,150 200,160 Q290,170 360,140 L360,250 Z" fill="${C.sand}"/>
+        ${flow(60, 150, 86, 3, 18)} ${flow(190, 290, 96, 2, 18)}
+        ${depthLabel(236, 64, "яма 4 м", true)} ${depthLabel(96, 130, "1,5 м", true)}
+        <path d="M150,118 Q230,132 312,112" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2" stroke-dasharray="6 6"/>
+        ${depthLabel(168, 110, "граница струи", true)}
+        ${snags(322, 70, .9)}
+        ${castArc(190, 186, 238, 124)}
+        ${castPoint(238, 124, dist)}
+        ${angler(186, 186, -1)}
+        ${scaleBar(18)}
+      `);
+    },
+  },
+
+  /* --- Перекат и яма за ним --- */
+  riffle_pool: {
+    tags: ["flat"], waters: ["river_small"],
+    title: "Перекат → яма за ним",
+    desc: (f) => `Перекат — кормовой конвейер: всё, что смывает струя, ждут внизу. Подача — на сбое струи сразу за перекатом, проводка естественная.`,
+    meta: (dist) => [`заброс ${dist}`, "за сливом переката", "сплав по струе"],
+    profile: "shelf",
+    svg(id, dist) {
+      return wrap(id, `
+        <rect width="360" height="250" fill="${C.grass2}"/>
+        <rect x="0" y="56" width="360" height="120" fill="url(#wgr${id})"/>
+        <path d="M0,56 H360 M0,176 H360" stroke="${C.grass}" stroke-width="5"/>
+        <g fill="#cfd8d2">
+          <circle cx="96" cy="92" r="7"/><circle cx="112" cy="124" r="9"/><circle cx="88" cy="148" r="6"/>
+          <circle cx="128" cy="100" r="5"/><circle cx="120" cy="146" r="7"/>
+        </g>
+        ${flow(20, 70, 90, 3, 22, "rgba(255,255,255,.65)")}
+        <path d="M134,80 q10,8 0,16 q-10,8 0,16 q10,8 0,16" stroke="rgba(255,255,255,.8)" stroke-width="2.4" fill="none" class="flow-dash"/>
+        ${depthLabel(84, 78, "перекат 0,5 м", true)} ${depthLabel(230, 90, "яма 2–3 м", true)}
+        <ellipse cx="246" cy="120" rx="60" ry="36" fill="${C.deepest}" opacity=".55"/>
+        ${castArc(196, 196, 216, 118)}
+        ${castPoint(216, 118, dist)}
+        ${angler(192, 196, -1)}
+        ${shoreBottom(false)}
+        ${scaleBar(14)}
+      `);
+    },
+  },
+
+  /* --- Канал: бровки двух берегов --- */
+  canal_edge: {
+    tags: ["dropoff", "flat"], waters: ["canal"],
+    title: "Бровка канала",
+    desc: (f) => `У каналов трапециевидное дно: две бровки вдоль берегов. Рабочая точка — основание ближней или дальней бровки, где оседает корм с течения.`,
+    meta: (dist) => [`заброс ${dist}`, "основание бровки", "держите точку"],
+    profile: "shelf",
+    svg(id, dist) {
+      return wrap(id, `
+        <rect width="360" height="250" fill="url(#wg${id})"/>
+        <path d="M0,70 H360" stroke="rgba(255,255,255,.5)" stroke-width="2" stroke-dasharray="7 6"/>
+        <path d="M0,140 H360" stroke="rgba(255,255,255,.4)" stroke-width="1.8" stroke-dasharray="7 6"/>
+        ${flow(120, 240, 96, 2, 18)}
+        ${depthLabel(16, 46, "русло 3–4 м")} ${depthLabel(20, 116, "бровка 2 м", true)} ${depthLabel(24, 174, "стол 1 м")}
+        ${ripples(80, 56)}
+        ${shoreBottom()}
+        ${reeds(36, 200, 5, 1)} ${reeds(326, 200, 5, 1)}
+        ${castArc(186, 198, 206, 134)}
+        ${castPoint(206, 134, dist)}
+        ${angler(182, 198, -1)}
+        ${scaleBar(16)}
+      `);
+    },
+  },
+
+  /* --- Опоры моста / гидросооружения --- */
+  bridge_piles: {
+    tags: ["bridge"], waters: ["canal", "river_big", "river_small", "reservoir"],
+    title: "У опор моста",
+    desc: (f) => `За опорой — затишье и промоина рядом: рыба прячется от струи и собирает корм. Подавайте в тень опоры и на границу завихрения.`,
+    meta: (dist) => [`заброс ${dist}`, "тень за опорой", "промоина рядом"],
+    profile: null,
+    svg(id, dist) {
+      return wrap(id, `
+        <rect width="360" height="250" fill="url(#wg${id})"/>
+        ${flow(20, 100, 80, 3, 20)} ${flow(250, 330, 80, 3, 20)}
+        <rect x="150" y="0" width="60" height="250" fill="#c9c2b2" opacity=".96"/>
+        <rect x="150" y="0" width="60" height="250" fill="none" stroke="#a89f8a" stroke-width="2"/>
+        <ellipse cx="180" cy="118" rx="26" ry="40" fill="${C.deepest}" opacity=".5"/>
+        ${depthLabel(160, 124, "промоина", true)}
+        <path d="M210,70 q14,10 0,20 q-14,10 0,20" stroke="rgba(255,255,255,.6)" stroke-width="2" fill="none" class="flow-dash"/>
+        ${depthLabel(222, 152, "затишье", true)}
+        ${shoreBottom()}
+        ${castArc(120, 198, 232, 130)}
+        ${castPoint(232, 130, dist)}
+        ${angler(116, 198, -1)}
+        ${scaleBar(16)}
+      `);
+    },
+  },
+
+  /* --- Дамба / глубокий угол пруда --- */
+  dam_wall: {
+    tags: ["dropoff", "bridge"], waters: ["pond", "reservoir"],
+    title: "У дамбы — самая глубокая часть",
+    desc: (f) => `Пруд копают с уклоном к дамбе: здесь максимальная глубина и прохладная вода. Летним днём и по холодной воде рыба скатывается именно сюда.`,
+    meta: (dist) => [`заброс ${dist}`, "глубина у стенки", "дневная точка"],
+    profile: "dropoff",
+    svg(id, dist) {
+      return wrap(id, `
+        <rect width="360" height="250" fill="url(#wg${id})" transform="rotate(180 180 125)"/>
+        <rect x="0" y="0" width="360" height="34" fill="#c9c2b2"/>
+        <path d="M0,34 H360" stroke="#a89f8a" stroke-width="3"/>
+        <text x="180" y="22" text-anchor="middle" font-size="10.5" font-weight="600" fill="#5d5747" font-family="Inter,sans-serif">дамба</text>
+        ${depthLabel(20, 60, "4–5 м", true)} ${depthLabel(24, 150, "2 м")} ${depthLabel(28, 196, "мелководье")}
+        ${ripples(200, 80)}
+        ${shoreBottom()}
+        ${reeds(40, 200, 5, 1)} ${reeds(316, 202, 5, 1)}
+        ${castArc(176, 198, 196, 84)}
+        ${castPoint(196, 84, dist)}
+        ${angler(172, 198, -1)}
+        ${scaleBar(18)}
+      `);
+    },
+  },
+};
+
+/* ---------- Дистанция заброса по снасти ---------- */
+function castDist(tackle, water) {
+  const far = water === "river_big" || water === "reservoir" || water === "canal";
+  switch (tackle) {
+    case "feeder": return far ? "40–60 м" : "25–40 м";
+    case "spinning": return "20–45 м";
+    case "livebait": return "10–20 м";
+    default: return far ? "15–25 м" : "8–15 м";
+  }
+}
+
+/* ---------- Подбор 3 схем под условия ---------- */
+function selectSpots(state) {
+  const fish = FISHES[state.fishId];
+  const scored = [];
+
+  for (const [key, tpl] of Object.entries(TEMPLATES)) {
+    if (!tpl.waters.includes(state.water)) continue;
+    let s = 1;
+    for (const tag of tpl.tags) {
+      if (fish.habitat.includes(tag)) s += 2;          // повадки рыбы
+      if (state.features.includes(tag)) s += 1.6;      // что рыбак видит на месте
+    }
+    /* лёгкий приоритет глубинных схем для глубинной рыбы */
+    if ((fish.depth.deep ?? 0) > 0.8 && tpl.tags.includes("dropoff")) s += 0.8;
+    if ((fish.depth.shallow ?? 0) > 0.8 && (tpl.tags.includes("reeds") || tpl.tags.includes("lilies"))) s += 0.8;
+    scored.push({ key, tpl, s });
+  }
+
+  scored.sort((a, b) => b.s - a.s);
+  const picked = scored.slice(0, 3);
+  const dist = castDist(state.tackle, state.water);
+  const fishName = fish.name.toLowerCase();
+
+  return picked.map(({ key, tpl }, i) => ({
+    key,
+    title: tpl.title,
+    desc: tpl.desc(fishName, dist),
+    meta: tpl.meta(dist),
+    svg: tpl.svg(key + i, dist),
+    profileSvg: tpl.profile ? profileSVG(tpl.profile) : "",
+  }));
+}
+
+/* ===== app.js ===== */
+/* ============================================================
+   КлёвГид — логика приложения: мастер шагов, карта, рендер.
+   Архитектура описана в ai/docs/02-architecture.md
+   ============================================================ */
+
+
+
+
+
+
+
+const $ = (s, r = document) => r.querySelector(s);
+const $ = (s, r = document) => [...r.querySelectorAll(s)];
+const STORE_KEY = "klevgid.v1";
+
+/* ---------- Состояние ---------- */
+const state = {
+  lat: null, lon: null, placeName: null,
+  water: null, features: [], depth: "mid",
+  weather: null, waterTemp: null,
+  fishId: null, tackle: null, baitsOwned: [],
+};
+let step = 0;          // 0 — хиро
+let maxStep = 1;       // максимально открытый шаг
+let map = null, marker = null;
+let condLoaded = false;
+
+/* ============================================================
+   Навигация по шагам
+   ============================================================ */
+function goTo(n) {
+  step = n;
+  maxStep = Math.max(maxStep, n);
+  $(".step-section").forEach(sec => { sec.hidden = +sec.dataset.step !== n; });
+  $("#hero").style.display = n === 0 ? "" : "none";
+  if (n === 0) $("#hero").scrollIntoView();
+
+  $(".snav").forEach(b => {
+    const i = +b.dataset.goto;
+    b.classList.toggle("active", i === n);
+    b.classList.toggle("done", i < n);
+    b.disabled = i > maxStep;
+  });
+  $("#progressFill").style.width = (n / 6 * 100) + "%";
+
+  if (n > 0) {
+    const sec = $(`#step${n}`);
+    sec.querySelectorAll(".reveal").forEach(el => el.classList.add("in"));
+    window.scrollTo({ top: sec.offsetTop - 70, behavior: "smooth" });
+  }
+  if (n === 1 && map) setTimeout(() => map.invalidateSize(), 250);
+  if (n === 3 && !condLoaded) loadConditions();
+  if (n === 4) renderFishGrid();
+}
+
+$(".snav").forEach(b => b.addEventListener("click", () => {
+  const n = +b.dataset.goto;
+  if (n <= maxStep) goTo(n);
+}));
+$("[data-back]").forEach(b => b.addEventListener("click", () => goTo(+b.dataset.back)));
+$("#startBtn").addEventListener("click", () => goTo(1));
+
+/* ============================================================
+   Шаг 1 — карта и точка
+   ============================================================ */
+function initMap() {
+  if (!window.L) { $("#mapHint").textContent = "Карта не загрузилась — введите координаты вручную"; return; }
+  const start = [55.75, 37.62];
+  map = L.map("map", { zoomControl: true }).setView(start, 9);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18, attribution: "© OpenStreetMap",
+  }).addTo(map);
+  map.on("click", e => setPoint(e.latlng.lat, e.latlng.lng));
+}
+
+const pinIcon = () => L.divIcon({
+  className: "cast-marker",
+  html: `<svg width="38" height="48" viewBox="0 0 38 48">
+    <path d="M19 1C9 1 2 8.6 2 18.2 2 30 19 47 19 47s17-17 17-28.8C36 8.6 29 1 19 1Z" fill="#d97757" stroke="#fff" stroke-width="2.5"/>
+    <circle cx="19" cy="18" r="6.5" fill="#fff"/></svg>`,
+  iconSize: [38, 48], iconAnchor: [19, 47],
+});
+
+async function setPoint(lat, lon, { silent = false } = {}) {
+  state.lat = +lat.toFixed(5);
+  state.lon = +lon.toFixed(5);
+  condLoaded = false;
+  $("#latInput").value = state.lat;
+  $("#lonInput").value = state.lon;
+
+  if (map) {
+    if (!marker) marker = L.marker([lat, lon], { icon: pinIcon(), draggable: true }).addTo(map)
+      .on("dragend", () => { const p = marker.getLatLng(); setPoint(p.lat, p.lng); });
+    else marker.setLatLng([lat, lon]);
+    if (!silent) map.flyTo([lat, lon], Math.max(map.getZoom(), 11), { duration: .8 });
+    $("#mapHint").classList.add("hide");
+  }
+
+  $("#placeCard").hidden = false;
+  $("#placeName").textContent = "Определяю место…";
+  $("#placeCoords").textContent = `${state.lat}, ${state.lon}`;
+  $("#toStep2").disabled = false;
+  localStorage.setItem(STORE_KEY, JSON.stringify({ lat: state.lat, lon: state.lon }));
+
+  const name = await reverseGeocode(state.lat, state.lon);
+  state.placeName = name || `Точка ${state.lat}, ${state.lon}`;
+  $("#placeName").textContent = name || "Место без названия (координаты сохранены)";
+}
+
+$("#geoBtn").addEventListener("click", () => {
+  if (!navigator.geolocation) { alert("Браузер не поддерживает геолокацию — кликните по карте."); return; }
+  $("#geoBtn").textContent = "Определяю…";
+  navigator.geolocation.getCurrentPosition(
+    p => { setPoint(p.coords.latitude, p.coords.longitude); resetGeoBtn(); },
+    () => { alert("Не удалось получить местоположение. Разрешите доступ или поставьте точку на карте."); resetGeoBtn(); },
+    { enableHighAccuracy: true, timeout: 12000 },
+  );
+});
+function resetGeoBtn() {
+  $("#geoBtn").innerHTML = `<svg viewBox="0 0 24 24" class="ic"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9 3h-2.07A7 7 0 0 0 13 5.07V3h-2v2.07A7 7 0 0 0 5.07 11H3v2h2.07A7 7 0 0 0 11 18.93V21h2v-2.07A7 7 0 0 0 18.93 13H21v-2Z" fill="currentColor"/></svg> Моё местоположение`;
+}
+
+$("#coordApplyBtn").addEventListener("click", () => {
+  const lat = parseFloat($("#latInput").value), lon = parseFloat($("#lonInput").value);
+  if (isNaN(lat) || isNaN(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    alert("Проверьте координаты: широта −90…90, долгота −180…180."); return;
+  }
+  setPoint(lat, lon);
+});
+$("#toStep2").addEventListener("click", () => goTo(2));
+
+/* ============================================================
+   Шаг 2 — водоём, ориентиры, глубина
+   ============================================================ */
+function renderWaterStep() {
+  const tiles = $("#waterTiles");
+  tiles.innerHTML = "";
+  for (const [key, w] of Object.entries(WATERS)) {
+    const b = document.createElement("button");
+    b.className = "tile reveal in";
+    b.innerHTML = `${waterIconSVG(w.icon)}<b>${w.name}</b><span>${w.desc}</span>`;
+    b.addEventListener("click", () => {
+      state.water = key; condLoaded = false;
+      $(".tile", tiles).forEach(t => t.classList.toggle("selected", t === b));
+      $("#toStep3").disabled = false;
+    });
+    tiles.appendChild(b);
+  }
+
+  const chips = $("#featureChips");
+  chips.innerHTML = "";
+  for (const [key, f] of Object.entries(FEATURES)) {
+    const c = document.createElement("button");
+    c.className = "chip";
+    c.innerHTML = `<span class="em">${f.em}</span>${f.name}`;
+    c.addEventListener("click", () => {
+      c.classList.toggle("selected");
+      state.features = $(".chip.selected", chips).map(x => x.dataset.key);
+    });
+    c.dataset.key = key;
+    chips.appendChild(c);
+  }
+
+  const seg = $("#depthSeg");
+  seg.innerHTML = "";
+  for (const [key, d] of Object.entries(DEPTHS)) {
+    const b = document.createElement("button");
+    b.textContent = d.name;
+    b.classList.toggle("selected", key === state.depth);
+    b.addEventListener("click", () => {
+      state.depth = key;
+      $("button", seg).forEach(x => x.classList.toggle("selected", x === b));
+    });
+    seg.appendChild(b);
+  }
+}
+$("#toStep3").addEventListener("click", () => goTo(3));
+
+/* ============================================================
+   Шаг 3 — условия
+   ============================================================ */
+async function loadConditions() {
+  $("#condLoader").style.display = "flex";
+  $("#condGrid").hidden = true;
+  $("#condExtra").hidden = true;
+  $("#manualCond").hidden = true;
+  $("#toStep4").disabled = true;
+
+  try {
+    const w = await fetchWeather(state.lat, state.lon);
+    state.weather = w;
+    state.waterTemp = estimateWaterTemp(w.hours, w.nowIdx, state.water, state.lat);
+    condLoaded = true;
+    renderConditions();
+  } catch (e) {
+    console.warn("Метео недоступно:", e);
+    $("#condLoader").style.display = "none";
+    $("#manualCond").hidden = false;
+  }
+}
+
+$("#condRefresh").addEventListener("click", () => { condLoaded = false; loadConditions(); });
+$("#manualApply").addEventListener("click", () => {
+  state.weather = manualWeather({
+    air: +$("#mAir").value, water: +$("#mWater").value,
+    pressure: +$("#mPressure").value, wind: +$("#mWind").value,
+    windDir: +$("#mWindDir").value, clouds: +$("#mClouds").value,
+  }, state.lat, state.lon);
+  state.waterTemp = +$("#mWater").value;
+  condLoaded = true;
+  renderConditions(true);
+});
+
+function condCard(label, icon, valueHTML, sub, tag) {
+  return `<div class="card cond-card">
+    <div class="cond-label">${icon}${label}</div>
+    <div class="cond-value">${valueHTML}</div>
+    ${sub ? `<div class="cond-sub">${sub}</div>` : ""}
+    ${tag ? `<span class="cond-tag ${tag.cls}">${tag.text}</span>` : ""}
+  </div>`;
+}
+const I = {
+  air: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v10m0 0a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/></svg>`,
+  water: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11Z"/></svg>`,
+  press: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 12l4-4"/></svg>`,
+  wind: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h8a3 3 0 1 1-3 3"/></svg>`,
+  sky: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18a4 4 0 0 1 0-8 6 6 0 0 1 11.6 1.6A3.5 3.5 0 0 1 17 18H6Z"/></svg>`,
+  moon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 14A8 8 0 1 1 10 4a6.5 6.5 0 0 0 10 10Z"/></svg>`,
+  time: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>`,
+};
+
+function renderConditions(manual = false) {
+  const w = state.weather, c = w.current;
+  const trend = pressureTrend(w.hours, w.nowIdx);
+  const moon = moonPhase(c.time);
+  const st = w.daily.sunrise.length
+    ? { sunrise: w.daily.sunrise[7] ?? w.daily.sunrise[0], sunset: w.daily.sunset[7] ?? w.daily.sunset[0] }
+    : sunTimes(new Date(), state.lat, state.lon);
+  const period = dayPeriod(c.time, st.sunrise, st.sunset);
+  const fmt = d => d ? d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "—";
+
+  const wt = state.waterTemp;
+  const wtTag = wt == null ? null
+    : wt < 8 ? { cls: "bad", text: "холодная вода" }
+    : wt < 14 ? { cls: "warn", text: "прохладная" }
+    : wt <= 22 ? { cls: "good", text: "комфортная" }
+    : { cls: "warn", text: "тёплая, ищите глубину" };
+
+  const grid = $("#condGrid");
+  grid.innerHTML =
+    condCard("Воздух", I.air, `${fmtT(c.t)}<small> °C</small>`,
+      `ощущается как ${fmtT(c.feels)} °C · ${weatherWord(c.code)}`,
+      { cls: "info", text: manual ? "введено вручную" : "реальные данные" }) +
+    condCard("Вода (модель)", I.water, wt != null ? `${wt.toFixed(1)}<small> °C</small>` : "—",
+      manual ? "указана вами" : `оценка для: ${WATERS[state.water].name.toLowerCase()} · точность ±2 °C`,
+      wtTag) +
+    condCard("Давление", I.press, `${Math.round(c.pressureMm)}<small> мм</small>`,
+      `за сутки: ${trend.delta > 0 ? "+" : ""}${trend.delta} мм`,
+      { cls: trend.cls, text: trend.label }) +
+    `<div class="card cond-card">
+      <div class="cond-label">${I.wind}Ветер</div>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:6px">
+        ${windCompassSVG(c.windDir, c.windMs)}
+        <div><div class="cond-value" style="margin:0">${c.windMs.toFixed(1)}<small> м/с</small></div>
+        <div class="cond-sub">${windDirName(c.windDir)} · порывы до ${Math.round(c.gusts)} м/с</div></div>
+      </div>
+    </div>` +
+    condCard("Небо", I.sky, `${Math.round(c.clouds)}<small> %</small>`,
+      `облачность · осадки ${c.precip > 0.05 ? c.precip.toFixed(1) + " мм/ч" : "нет"}`) +
+    `<div class="card cond-card">
+      <div class="cond-label">${I.moon}Луна</div>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:6px">
+        ${moonSVG(moon.frac)}
+        <div><b style="font-size:.95rem">${moon.name}</b>
+        <div class="cond-sub">освещённость ${Math.round(moon.illum * 100)}%</div></div>
+      </div>
+    </div>` +
+    condCard("Время на точке", I.time, fmt(c.time),
+      st.sunrise ? `восход ${fmt(st.sunrise)} · закат ${fmt(st.sunset)}` : "полярный день/ночь",
+      { cls: period === "dawn" || period === "dusk" ? "good" : "info", text: "сейчас " + PERIOD_NAMES[period] });
+
+  $("#condLoader").style.display = "none";
+  grid.hidden = false;
+
+  if (!manual) {
+    $("#pressureChart").innerHTML = pressureChartSVG(w.hours, w.nowIdx);
+    $("#tempChart").innerHTML = tempChartSVG(waterTempSeries(w.hours, w.nowIdx, state.water));
+    $("#condExtra").hidden = false;
+    $("#condExtra .reveal").forEach(el => el.classList.add("in"));
+  } else {
+    $("#condExtra").hidden = true;
+  }
+  $("#toStep4").disabled = false;
+}
+const fmtT = v => (v > 0 ? "+" : "") + Math.round(v * 10) / 10;
+
+$("#toStep4").addEventListener("click", () => goTo(4));
+
+/* ============================================================
+   Шаг 4 — рыба
+   ============================================================ */
+function fishCtx() {
+  const w = state.weather;
+  const st = w.daily.sunrise.length
+    ? { sunrise: w.daily.sunrise[7] ?? w.daily.sunrise[0], sunset: w.daily.sunset[7] ?? w.daily.sunset[0] }
+    : sunTimes(new Date(), state.lat, state.lon);
+  return {
+    water: state.water, lat: state.lat,
+    month: w.current.time.getMonth(),
+    waterTemp: state.waterTemp, now: w.current.time,
+    sunrise: st.sunrise, sunset: st.sunset,
+  };
+}
+
+function renderFishGrid() {
+  const ctx = fishCtx();
+  const grid = $("#fishGrid");
+  grid.innerHTML = "";
+  const list = Object.entries(FISHES)
+    .map(([id, f]) => ({ id, f, a: fishActivityNow(id, ctx) }))
+    .filter(x => x.a)
+    .sort((a, b) => b.a.score - a.a.score);
+
+  $("#fishIntro").textContent =
+    `В водоёме типа «${WATERS[state.water].name.toLowerCase()}» в вашем регионе реально ловятся ${list.length} видов. Отсортированы по активности прямо сейчас.`;
+
+  list.forEach(({ id, f, a }, i) => {
+    const lab = activityLabel(a.score);
+    const card = document.createElement("button");
+    card.className = "fish-card";
+    card.style.animationDelay = (i * 55) + "ms";
+    card.innerHTML = `
+      <div class="fish-art">${fishSVG(f.shape, f.hue)}</div>
+      <b>${f.name}</b><span class="latin">${f.latin}</span>
+      <span class="act-badge ${lab.cls}">${lab.label}</span>
+      <div class="fish-why">${a.why[0].toUpperCase() + a.why.slice(1)}.</div>`;
+    card.addEventListener("click", () => {
+      state.fishId = id;
+      $(".fish-card", grid).forEach(x => x.classList.toggle("selected", x === card));
+      $("#toStep5").disabled = false;
+    });
+    grid.appendChild(card);
+  });
+
+  if (state.fishId && !list.some(x => x.id === state.fishId)) { state.fishId = null; $("#toStep5").disabled = true; }
+}
+
+$("#autoFish").addEventListener("click", () => {
+  const best = adviseFish(state, Object.keys(FISHES));
+  if (!best) return;
+  state.fishId = best;
+  $("#fishGrid .fish-card").forEach(c => {
+    const isIt = c.querySelector("b").textContent === FISHES[best].name;
+    c.classList.toggle("selected", isIt);
+    if (isIt) c.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  $("#toStep5").disabled = false;
+});
+$("#toStep5").addEventListener("click", () => { goTo(5); renderTackleStep(); });
+
+/* ============================================================
+   Шаг 5 — снасть и насадки
+   ============================================================ */
+function renderTackleStep() {
+  const fish = FISHES[state.fishId];
+  const tiles = $("#tackleTiles");
+  tiles.innerHTML = "";
+  for (const [key, t] of Object.entries(TACKLE)) {
+    const fit = fish.tackle[key] ?? 0;
+    const b = document.createElement("button");
+    b.className = "tile";
+    const fitTxt = fit >= 0.8 ? ["good", "отлично подходит"] : fit >= 0.4 ? ["warn", "рабочий вариант"] : ["bad", `слабо подходит для: ${fish.name.toLowerCase()}`];
+    b.innerHTML = `<span style="font-size:2rem">${t.em}</span><b>${t.name}</b><span>${t.desc} · ${t.dist}</span>
+      <span class="cond-tag ${fitTxt[0]}" style="margin-top:8px">${fitTxt[1]}</span>`;
+    b.addEventListener("click", () => {
+      state.tackle = key;
+      $(".tile", tiles).forEach(x => x.classList.toggle("selected", x === b));
+      renderBaitChips();
+      $("#toResult").disabled = false;
+    });
+    tiles.appendChild(b);
+  }
+  renderBaitChips();
+}
+
+function renderBaitChips() {
+  const chips = $("#baitChips");
+  chips.innerHTML = "";
+  for (const [key, b] of Object.entries(BAITS)) {
+    if (state.tackle && !b.tackle.includes(state.tackle)) continue;
+    const c = document.createElement("button");
+    c.className = "chip" + (state.baitsOwned.includes(key) ? " selected" : "");
+    c.innerHTML = `<span class="em">${b.em}</span>${b.name}`;
+    c.addEventListener("click", () => {
+      c.classList.toggle("selected");
+      state.baitsOwned = $(".chip.selected", chips).map(x => x.dataset.key);
+    });
+    c.dataset.key = key;
+    chips.appendChild(c);
+  }
+  state.baitsOwned = state.baitsOwned.filter(k => !state.tackle || BAITS[k].tackle.includes(state.tackle));
+}
+
+$("#toResult").addEventListener("click", () => { renderResult(); goTo(6); });
+
+/* ============================================================
+   Шаг 6 — результат
+   ============================================================ */
+function renderResult() {
+  const bite = computeBite(state);
+  const fish = FISHES[state.fishId];
+
+  $("#resultTitle").textContent = `${fish.name}: ${bite.verdict.title.toLowerCase()}`;
+  $("#resultSubtitle").textContent =
+    `${state.placeName || "Ваша точка"} · ${WATERS[state.water].name} · ${new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long" })} · ${TACKLE[state.tackle].name.toLowerCase()}`;
+
+  /* Индикатор */
+  const g = $("#gaugeCard");
+  g.innerHTML = gaugeSVG(bite.pct) +
+    `<div class="gauge-verdict">${bite.verdict.title}</div>
+     <p class="gauge-phrase">${bite.verdict.phrase}</p>`;
+  animateCount(g.querySelector("[data-gauge-num]"), bite.pct, 1500, "%");
+
+  /* Факторы */
+  const fb = $("#factorBars");
+  fb.innerHTML = bite.factors.map(f => {
+    const pct = Math.round(f.score * 100);
+    const col = pct >= 62 ? "var(--good)" : pct >= 40 ? "var(--warn)" : "var(--bad)";
+    return `<div class="fbar">
+      <div class="fbar-head"><b>${f.name}</b><span style="color:${col}">${pct}%</span></div>
+      <div class="fbar-track"><div class="fbar-fill" data-w="${pct}" style="background:${col}"></div></div>
+      <div class="fbar-note">${f.note}</div>
+    </div>`;
+  }).join("");
+  requestAnimationFrame(() => setTimeout(() =>
+    $(".fbar-fill", fb).forEach((el, i) => setTimeout(() => el.style.width = el.dataset.w + "%", i * 90)), 80));
+
+  /* Почасовой график */
+  $("#hourlyChart").innerHTML = hourlyChartSVG(bite.hourly);
+
+  /* Насадки */
+  const compat = bite.baits.filter(b => b.compat).slice(0, 5);
+  const incompat = bite.baits.filter(b => !b.compat).slice(0, 1);
+  $("#baitList").innerHTML = compat.map((b, i) => `
+    <div class="bait-item ${i === 0 ? "top" : ""}">
+      <div class="bait-rank">${i + 1}</div>
+      <div><b>${b.em} ${b.name}${b.owned ? `<span class="have">есть у вас</span>` : ""}</b>
+      <p>${b.why[0].toUpperCase() + b.why.slice(1)}.</p></div>
+    </div>`).join("") +
+    (incompat.length && incompat[0].score > 0.5 ? `
+    <div class="bait-item" style="opacity:.65">
+      <div class="bait-rank">!</div>
+      <div><b>${incompat[0].em} ${incompat[0].name}</b>
+      <p>Очень уловиста по этой рыбе, но требует другой снасти.</p></div>
+    </div>` : "");
+
+  /* Тактика */
+  $("#tacticsList").innerHTML = buildTactics(state, bite).map(t => `
+    <div class="tactic-item">
+      <div class="tactic-icon">${t.icon}</div>
+      <div><b>${t.title}</b><p>${t.text}</p></div>
+    </div>`).join("");
+
+  /* Схемы точек */
+  $("#spotsGrid").innerHTML = selectSpots(state).map(s => `
+    <div class="card spot-card">
+      <div class="spot-svg-wrap">${s.svg}</div>
+      <div class="spot-body">
+        <b>${s.title}</b>
+        <p>${s.desc}</p>
+        <div class="spot-meta">${s.meta.map(m => `<span>${m}</span>`).join("")}</div>
+        ${s.profileSvg}
+      </div>
+    </div>`).join("");
+
+  /* Сводка */
+  const sum = buildSummary(state, bite);
+  const fmt = d => d ? d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "—";
+  $("#summaryCard").innerHTML = `
+    <h4>Сводка одним взглядом</h4>
+    <div class="summary-grid">
+      <div class="sum-item"><b>Цель</b><span>${sum.fish}</span></div>
+      <div class="sum-item"><b>Шанс клёва</b><span>${sum.pct}%</span></div>
+      <div class="sum-item"><b>Лучший час</b><span>${sum.bestHour}</span></div>
+      <div class="sum-item"><b>Насадка №1</b><span>${sum.bait}</span></div>
+      <div class="sum-item"><b>Снасть</b><span>${sum.tackle}</span></div>
+      <div class="sum-item"><b>Зорьки</b><span>${fmt(bite.sunrise)} / ${fmt(bite.sunset)}</span></div>
+    </div>`;
+}
+
+$("#printBtn").addEventListener("click", () => window.print());
+$("#restartBtn").addEventListener("click", () => {
+  state.water = null; state.features = []; state.fishId = null;
+  state.tackle = null; state.baitsOwned = []; condLoaded = false;
+  maxStep = 1;
+  renderWaterStep();
+  $("#toStep3").disabled = true; $("#toStep4").disabled = true;
+  $("#toStep5").disabled = true; $("#toResult").disabled = true;
+  goTo(1);
+});
+
+/* ============================================================
+   Появление при скролле + счётчики хиро
+   ============================================================ */
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.classList.add("in");
+    if (e.target.hasAttribute("data-count")) animateCount(e.target, +e.target.dataset.count, 1200);
+    io.unobserve(e.target);
+  });
+}, { threshold: 0.15 });
+$(".reveal, [data-count]").forEach(el => io.observe(el));
+
+/* ============================================================
+   Старт
+   ============================================================ */
+initMap();
+renderWaterStep();
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+  if (saved?.lat) {
+    setPoint(saved.lat, saved.lon, { silent: true });
+    if (map) map.setView([saved.lat, saved.lon], 10);
+  }
+} catch { /* пусто */ }
+goTo(0);
+
+})();
+</script>
+</body>
+</html>
