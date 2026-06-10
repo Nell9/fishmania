@@ -22,6 +22,9 @@ fishing/
 │   ├── spotmaps.js     генераторы SVG-схем точек ловли
 │   └── charts.js       SVG-графики: гейдж, часы, давление, T, компас, Луна, силуэты
 ├── klevgid-standalone.html  однофайловая сборка для запуска двойным кликом (file://)
+├── deploy/             продакшен: nginx.conf, nginx-ratelimit.conf (лимиты и боты), fail2ban-jail.local
+├── start-server.ps1    локальный сервер Windows (запускается «Запустить сайт.bat»)
+├── README.md           витрина репозитория · .gitignore
 └── ai/docs/            эта документация
 ```
 

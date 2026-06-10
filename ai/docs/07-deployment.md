@@ -52,6 +52,38 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 
 и добавить в server-блок: `listen 443 ssl default_server; ssl_certificate /etc/ssl/certs/fishmania.crt; ssl_certificate_key /etc/ssl/private/fishmania.key;`
 
+## Защита от DDoS и ботов (лёгкая, без капч и регистраций)
+
+Три слоя, все невидимы для обычных посетителей. Готовые файлы — в `deploy/`. Применить на сервере из папки сайта:
+
+```bash
+sudo cp deploy/nginx-ratelimit.conf /etc/nginx/conf.d/
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/fishmania
+sudo nginx -t && sudo systemctl reload nginx
+
+sudo apt install -y fail2ban
+sudo cp deploy/fail2ban-jail.local /etc/fail2ban/jail.d/fishmania.local
+sudo systemctl restart fail2ban && sudo fail2ban-client status
+```
+
+| Слой | Что делает |
+|---|---|
+| Лимиты nginx (`limit_req` 10 r/s + burst 30, `limit_conn` 20) | Страница целиком — ~10 запросов, человек лимит не замечает даже при жадном F5. Бот-долбилка получает 429 и не грузит диск/канал. |
+| Фильтр ботов и проб | Сканеры по User-Agent (sqlmap, nikto, masscan, nuclei…), пустой UA, типовые пробы (`/wp-admin`, `*.php`, `/phpmyadmin`…) → код 444: nginx молча рвёт соединение, не тратя ресурсы. curl/wget не блокируются — удобно проверять сайт самому. |
+| fail2ban | Кто продолжает долбить после лимитов — бан IP на файрволе на 10 мин (поймает по error-логу). Заодно защита SSH от брутфорса (5 попыток → бан на час). |
+
+Также в конфиге: `client_max_body_size 16k` (сайт ничего не принимает) и короткие таймауты заголовков/тела против slowloris-висяков.
+
+**Честно про пределы.** Настоящий объёмный DDoS (десятки Гбит/с) одним VPS не останавливается ничем — это уровень DDoS-защиты хостера (у многих включается бесплатно в панели) или CDN. Cloudflare (бесплатный тариф) добавит и защиту, и HTTPS, но требует домен — по голому IP не работает. Против ботов, парсеров и бытовых «флудилок» слоёв выше достаточно.
+
+**Проверка после включения:**
+
+```bash
+curl -A "sqlmap" http://ВАШ_IP/        # соединение сбросится без ответа
+for i in $(seq 1 60); do curl -so /dev/null -w "%{http_code} " http://ВАШ_IP/; done   # пойдут 429
+sudo fail2ban-client status nginx-limit-req   # список забаненных
+```
+
 ## Вариант B — Docker
 
 ```dockerfile

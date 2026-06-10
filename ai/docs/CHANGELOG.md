@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.3] — 2026-06-10
+
+### Добавлено
+- Защита от ботов и DDoS без капч: лимиты nginx на IP (10 r/s, burst 30, 20 соединений), фильтр сканеров по User-Agent и типовых проб уязвимостей (444), короткие таймауты против slowloris, jail-конфиг fail2ban (nginx-limit-req + sshd). Файлы: deploy/nginx-ratelimit.conf, deploy/fail2ban-jail.local, обновлён deploy/nginx.conf; раздел в 07-deployment.md.
+
+## [1.0.2] — 2026-06-10
+
+### Изменено
+- Карта: убран префикс Leaflet (флаг и ссылка на leafletjs.com) из атрибуции. Пометка «© OpenStreetMap» сохранена — обязательное условие лицензии тайлов.
+
 ## [1.0.1] — 2026-06-10
 
 ### Добавлено

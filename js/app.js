@@ -70,6 +70,7 @@ function initMap() {
   if (!window.L) { $("#mapHint").textContent = "Карта не загрузилась — введите координаты вручную"; return; }
   const start = [55.75, 37.62];
   map = L.map("map", { zoomControl: true }).setView(start, 9);
+  map.attributionControl.setPrefix(false); // без префикса Leaflet (флаг и ссылка); © OpenStreetMap — обязательная пометка лицензии
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 18, attribution: "© OpenStreetMap",
   }).addTo(map);

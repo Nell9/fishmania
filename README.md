@@ -28,6 +28,8 @@
 
 Готовый конфиг: [`deploy/nginx.conf`](deploy/nginx.conf), пошаговая инструкция: [`ai/docs/07-deployment.md`](ai/docs/07-deployment.md).
 
+Защита от ботов и DDoS (без капч): `deploy/nginx-ratelimit.conf` — лимиты на IP и фильтр сканеров, `deploy/fail2ban-jail.local` — бан упорных на файрволе. Применение — в той же инструкции.
+
 ```bash
 sudo apt install -y nginx git
 sudo git clone https://github.com/Nell9/fishmania.git /var/www/fishmania
