@@ -10,3 +10,6 @@ dist/
 
 # Локальное
 *.local
+
+# конфиг fail2ban — нужен в репозитории (исключение из *.local)
+!deploy/fail2ban-jail.local

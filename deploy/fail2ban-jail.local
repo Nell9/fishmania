@@ -1,0 +1,22 @@
+# ============================================================
+# КлёвГид — fail2ban: бан долбящих после лимитов nginx + защита SSH
+# Положить в: /etc/fail2ban/jail.d/fishmania.local
+# Применить:  systemctl restart fail2ban && fail2ban-client status
+# ============================================================
+
+[nginx-limit-req]
+enabled  = true
+filter   = nginx-limit-req
+port     = http,https
+logpath  = /var/log/nginx/fishmania.error.log
+findtime = 600
+maxretry = 30
+bantime  = 600
+
+[sshd]
+enabled  = true
+# на минимальных Ubuntu нет /var/log/auth.log — читаем журнал systemd
+backend  = systemd
+maxretry = 5
+findtime = 600
+bantime  = 3600
