@@ -1,27 +1,56 @@
-"""Тонкий клиент Anthropic: строит RAG-промпт и парсит строгий JSON.
+"""Тонкий клиент Claude: транспорт CLI (Claude Code, без API-ключа) или SDK.
 
-Ключ берётся из окружения ANTHROPIC_API_KEY (в код не попадает).
-Модели настраиваются через KLEVGID_MODEL_ANALYZE / KLEVGID_MODEL_TACTICS.
-При любой ошибке вызывающий код откатывается на локальный движок.
+KLEVGID_AI_TRANSPORT:
+  auto — CLI при наличии бинаря `claude`, иначе SDK при ANTHROPIC_API_KEY, иначе local (по умолчанию)
+  cli  — Claude Code CLI (`claude -p … --output-format json`); авторизация по подписке
+         (`claude` → /login, либо CLAUDE_CODE_OAUTH_TOKEN). API-ключ НЕ нужен.
+  sdk  — официальный Anthropic SDK (нужен ANTHROPIC_API_KEY)
+  off  — только локальный движок
+
+Модель по умолчанию — Haiku (KLEVGID_MODEL_ANALYZE / KLEVGID_MODEL_TACTICS).
+При любой ошибке вызывающий код (main.py) откатывается на engine.py (local).
+Документация: ai/docs/12-backend.md
 """
-import json, os, re
+import json
+import os
+import re
+import shutil
+import subprocess
+import tempfile
 
 MODEL_ANALYZE = os.environ.get("KLEVGID_MODEL_ANALYZE", "claude-haiku-4-5-20251001")
-MODEL_TACTICS = os.environ.get("KLEVGID_MODEL_TACTICS", "claude-sonnet-4-6")
+MODEL_TACTICS = os.environ.get("KLEVGID_MODEL_TACTICS", "claude-haiku-4-5-20251001")
+TRANSPORT = os.environ.get("KLEVGID_AI_TRANSPORT", "auto").lower()
+CLAUDE_BIN = os.environ.get("KLEVGID_CLAUDE_BIN", "claude")
+CLI_TIMEOUT = int(os.environ.get("KLEVGID_CLI_TIMEOUT", "60"))
 
 
-def available() -> bool:
+def cli_available() -> bool:
+    return shutil.which(CLAUDE_BIN) is not None
+
+
+def sdk_available() -> bool:
     return bool(os.environ.get("ANTHROPIC_API_KEY"))
 
 
-def _client():
-    from anthropic import Anthropic   # импорт ленивый — пакет не нужен для local-режима
-    return Anthropic()
+def transport() -> str:
+    """Какой транспорт реально будет использован: cli | sdk | off."""
+    if TRANSPORT in ("cli", "sdk", "off"):
+        return TRANSPORT
+    if cli_available():
+        return "cli"
+    if sdk_available():
+        return "sdk"
+    return "off"
+
+
+def available() -> bool:
+    return transport() in ("cli", "sdk")
 
 
 def _extract_json(text: str) -> dict:
     """Достаёт JSON-объект из ответа модели (срезает ```-ограждения и текст вокруг)."""
-    t = text.strip()
+    t = (text or "").strip()
     t = re.sub(r"^```(?:json)?", "", t).strip()
     t = re.sub(r"```$", "", t).strip()
     try:
@@ -33,13 +62,62 @@ def _extract_json(text: str) -> dict:
         raise
 
 
-def _call(model: str, system: str, prompt: str, max_tokens: int = 1600) -> dict:
-    msg = _client().messages.create(
+# ---------- Транспорт SDK ----------
+def _call_sdk(model: str, system: str, prompt: str, max_tokens: int = 1600) -> dict:
+    from anthropic import Anthropic  # ленивый импорт — для CLI/local пакет не нужен
+    msg = Anthropic().messages.create(
         model=model, max_tokens=max_tokens, system=system,
         messages=[{"role": "user", "content": prompt}],
     )
     parts = [b.text for b in msg.content if getattr(b, "type", None) == "text"]
     return _extract_json("\n".join(parts))
+
+
+# ---------- Транспорт CLI (Claude Code) ----------
+def _claude_argv(args):
+    # На Windows `claude` — это claude.cmd; запускаем через `cmd /c`.
+    if os.name == "nt":
+        return ["cmd", "/c", CLAUDE_BIN, *args]
+    return [CLAUDE_BIN, *args]
+
+
+def _call_cli(model: str, system: str, prompt: str) -> dict:
+    """Вызов Claude Code CLI. Системную часть и данные передаём через stdin
+    (без длинных аргументов — безопасно и на Windows, и на POSIX)."""
+    full = system + "\n\n" + prompt
+    argv = _claude_argv([
+        "-p", "Follow the instructions in stdin and return ONLY strict JSON.",
+        "--output-format", "json",
+        "--model", model,
+    ])
+    try:
+        r = subprocess.run(
+            argv, input=full, capture_output=True, text=True, encoding="utf-8",
+            timeout=CLI_TIMEOUT, env={**os.environ}, cwd=tempfile.gettempdir(),
+        )
+    except FileNotFoundError as e:
+        raise RuntimeError(f"claude CLI не найден ({CLAUDE_BIN}): {e}")
+    if r.returncode != 0:
+        raise RuntimeError(f"claude CLI rc={r.returncode}: {(r.stderr or r.stdout or '')[:300]}")
+    out = (r.stdout or "").strip()
+    try:
+        payload = json.loads(out)
+    except Exception:
+        return _extract_json(out)  # на случай нестандартного вывода
+    if isinstance(payload, dict):
+        if payload.get("is_error") or payload.get("subtype") in ("error_max_turns", "error_during_execution"):
+            raise RuntimeError(f"claude CLI error: {str(payload)[:300]}")
+        return _extract_json(payload.get("result", out))
+    return _extract_json(out)
+
+
+def _call(model: str, system: str, prompt: str, max_tokens: int = 1600) -> dict:
+    t = transport()
+    if t == "cli":
+        return _call_cli(model, system, prompt)
+    if t == "sdk":
+        return _call_sdk(model, system, prompt, max_tokens)
+    raise RuntimeError("AI-транспорт выключен: нет CLI `claude` и нет ANTHROPIC_API_KEY")
 
 
 SYSTEM_ANALYZE = (

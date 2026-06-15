@@ -40,7 +40,7 @@ def _profile(req_profile, water_temp=None):
 
 @app.get("/api/health")
 def health():
-    info = {"ok": True, "claude": claude_client.available(), "db": db.DB_PATH}
+    info = {"ok": True, "claude": claude_client.available(), "transport": claude_client.transport(), "db": db.DB_PATH}
     try:
         c = db.connect()
         info["species"] = c.execute("SELECT COUNT(*) FROM species").fetchone()[0]

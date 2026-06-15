@@ -2557,7 +2557,7 @@ async function postJSON(url, body, ms) {
 }
 
 /* Разбор водоёма через бэкенд (/api/ai/analyze). Бэкенд сам выбирает claude/local. */
-async function analyzeBackend(input, ms = 8000) {
+async function analyzeBackend(input, ms = 15000) {
   const ctx = assembleContext(input);
   const data = await postJSON(AI_CONFIG.endpoints.analyze,
     { profile: ctx, month: ctx.month, waterTemp: ctx.waterTemp }, ms);
@@ -2565,7 +2565,7 @@ async function analyzeBackend(input, ms = 8000) {
 }
 
 /* Тактика + честный прогноз шанса через бэкенд (/api/ai/tactics). */
-async function fetchTactics(payload, ms = 12000) {
+async function fetchTactics(payload, ms = 25000) {
   return await postJSON(AI_CONFIG.endpoints.tactics, payload, ms);
 }
 

@@ -48,3 +48,22 @@ KLEVGID_DB=/tmp/klevgid.db python -m pytest test_api.py -q   # или: python te
 
 uvicorn за nginx (`/api/` → `127.0.0.1:8000`), ключ в окружении сервиса (systemd).
 Подробности и пример unit-файла — в `12-backend.md` и `07-deployment.md`.
+
+## Claude через CLI (без API-ключа)
+
+Если у тебя нет API-ключа, используй Claude Code CLI с авторизацией по подписке:
+
+```bash
+npm install -g @anthropic-ai/claude-code   # нужен Node 18+
+claude                                       # затем /login — вход по подписке Pro/Max
+# проверка: claude -p "ответь словом ok" --output-format json
+
+# запуск бэкенда на CLI-транспорте:
+set KLEVGID_AI_TRANSPORT=cli     &  rem Windows (cmd)
+# export KLEVGID_AI_TRANSPORT=cli   # Linux/macOS
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+`GET /api/health` покажет `"transport":"cli"`. Модель по умолчанию — Haiku.
+На сервере вместо интерактивного `/login`: `claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`.
+Подробности и нюансы — в `../ai/docs/12-backend.md`.
