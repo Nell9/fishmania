@@ -607,7 +607,7 @@ function renderResult() {
   const noteEl = $("#spotsNote");
   if (noteEl) {
     noteEl.textContent = state.surr
-      ? `Первая схема — реальный рельеф вашей точки по карте (радиус 300 м). ✕ — реалистичная точка заброса для вашей снасти${state.castInfo ? ": " + state.castInfo.label : ""}.`
+      ? `Первая схема — спутник вашей точки (Esri, ≈130 м), берег снизу → вода вверх. Точки ловли пронумерованы; заброс${state.castInfo ? ": " + state.castInfo.label : ""}.`
       : `Типовые рабочие точки для вашего водоёма и рыбы. ✕ — куда забрасывать${state.castInfo ? " (" + state.castInfo.label + ")" : ""}.`;
   }
   $("#spotsGrid").innerHTML = spots.map(s => `
@@ -674,3 +674,45 @@ try {
   }
 } catch { /* пусто */ }
 goTo(0);
+
+/* ---------- Поповеры точек ловли на спутниковой схеме ---------- */
+let _spotPop = null;
+function closeSpotPop() { if (_spotPop) { _spotPop.remove(); _spotPop = null; } }
+function initSpotPopovers() {
+  const grid = $("#spotsGrid");
+  if (!grid || grid.dataset.spotWired) return;
+  grid.dataset.spotWired = "1";
+  grid.addEventListener("click", (e) => {
+    const m = e.target.closest && e.target.closest(".spot-marker");
+    closeSpotPop();
+    if (!m) return;
+    e.stopPropagation();
+    const wrap = m.closest(".spot-svg-wrap");
+    if (!wrap) return;
+    wrap.style.position = "relative";
+    const pop = document.createElement("div");
+    pop.className = "spot-popover";
+    const b = document.createElement("b"); b.textContent = m.getAttribute("data-title") || "";
+    const p = document.createElement("p"); p.textContent = m.getAttribute("data-tip") || "";
+    pop.append(b, p);
+    wrap.appendChild(pop);
+    _spotPop = pop;
+    const r = m.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+    const cx = r.left - wr.left + r.width / 2;
+    pop.style.left = Math.round(Math.max(8, Math.min(cx, wr.width - 8))) + "px";
+    const below = r.top - wr.top + r.height + 8;
+    if (below + pop.offsetHeight <= wr.height) {
+      pop.style.top = Math.round(below) + "px"; pop.classList.add("below");
+    } else {
+      pop.style.top = Math.round(r.top - wr.top - pop.offsetHeight - 8) + "px"; pop.classList.add("above");
+    }
+  });
+  grid.addEventListener("keydown", (e) => {
+    const t = e.target;
+    if ((e.key === "Enter" || e.key === " ") && t.classList && t.classList.contains("spot-marker")) {
+      e.preventDefault(); t.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+  });
+  document.addEventListener("click", closeSpotPop);
+}
+initSpotPopovers();

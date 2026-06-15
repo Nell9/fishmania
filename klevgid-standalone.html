@@ -498,6 +498,32 @@ input[type="number"]:focus, select:focus { outline: none; border-color: var(--ac
   .tiles, .tiles-4, .fish-grid, .cond-grid { grid-template-columns: 1fr; }
 }
 
+/* ---------- Спутниковая схема: маркеры точек ловли и поповер ---------- */
+.spot-marker { transition: transform .15s var(--ease); transform-box: fill-box; transform-origin: center; outline: none; }
+.spot-marker:hover { transform: scale(1.18); }
+.spot-marker:focus-visible { filter: drop-shadow(0 0 0 2px #fff) drop-shadow(0 0 0 4px var(--accent)); }
+
+.spot-popover {
+  position: absolute; transform: translateX(-50%); z-index: 6;
+  width: max-content; max-width: 230px;
+  background: rgba(16, 69, 92, .96); color: #fff;
+  padding: 9px 12px; border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+  font-family: var(--font-ui, "Inter", sans-serif);
+  animation: spotPopIn .16s var(--ease);
+  pointer-events: none;
+}
+.spot-popover b { display: block; font-size: .86rem; margin-bottom: 3px; }
+.spot-popover p { margin: 0; font-size: .78rem; line-height: 1.4; opacity: .92; }
+.spot-popover::after {
+  content: ""; position: absolute; left: 50%; margin-left: -6px;
+  border: 6px solid transparent;
+}
+.spot-popover.below::after { top: -12px; border-bottom-color: rgba(16, 69, 92, .96); }
+.spot-popover.above::after { bottom: -12px; border-top-color: rgba(16, 69, 92, .96); }
+@keyframes spotPopIn { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .spot-popover { animation: none; } .spot-marker { transition: none; } }
+
 </style>
 </head>
 <body>
@@ -2776,7 +2802,8 @@ function waterIconSVG(key) {
    Камыш, кувшинки, коряги, бровки, течение, рыболов и точка
    заброса ✕ с пульсацией. Подбор схем — по типу водоёма,
    повадкам рыбы и отмеченным ориентирам.
-   ============================================================ */
+   ============================================================ */
+
 /* ---------- Палитра воды и берега ---------- */
 const C = {
   shallow: "#a9cfdd", mid: "#7db4c9", deep: "#4a90ad", deepest: "#2e6f8c",
@@ -3173,69 +3200,181 @@ function castDistFallback(tackle, water) {
 }
 
 /* ============================================================
-   РЕАЛЬНЫЙ РЕЛЬЕФ ТОЧКИ (вид сверху, радиус из OSM)
+   РЕАЛЬНЫЙ РЕЛЬЕФ + СПУТНИК (вид сверху)
+   Под SVG-геометрию OSM подкладываются спутниковые тайлы Esri
+   World Imagery; сцена повёрнута «берег снизу → вода вверх»;
+   поверх — кликабельные точки ловли (data-title / data-tip).
+   Глубину не выдумываем: точки опираются только на видимые
+   объекты (камыш, устья притоков, мост, ближний/дальний берег).
    ============================================================ */
-function realTerrainSVG(surr, castInfo) {
+
+/* Web-Mercator тайлы Esri World Imagery (z/y/x) */
+const ESRI_TILE = (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+const lon2tx = (lon, z) => (lon + 180) / 360 * 2 ** z;
+const lat2ty = (lat, z) => (1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * 2 ** z;
+const tx2lon = (x, z) => x / 2 ** z * 360 - 180;
+const ty2lat = (y, z) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / 2 ** z))) * 180 / Math.PI;
+
+/* Тайлы, покрывающие окно радиусом R вокруг центра, в локальных метрах */
+function esriTiles(lat0, lon0, R, proj, z = 18) {
+  const dLat = R / 111320, dLon = R / (111320 * Math.cos(lat0 * Math.PI / 180));
+  const x1 = Math.floor(lon2tx(lon0 - dLon, z)), x2 = Math.floor(lon2tx(lon0 + dLon, z));
+  const y1 = Math.floor(lat2ty(lat0 + dLat, z)), y2 = Math.floor(lat2ty(lat0 - dLat, z));
+  const out = [];
+  for (let xt = x1; xt <= x2; xt++) for (let yt = y1; yt <= y2; yt++) {
+    const [nx, ny] = proj.toXY(ty2lat(yt, z), tx2lon(xt, z));       // NW угол → м
+    const [sx, sy] = proj.toXY(ty2lat(yt + 1, z), tx2lon(xt + 1, z)); // SE угол → м
+    out.push({ url: ESRI_TILE(z, xt, yt), x: nx, y: ny, w: sx - nx, h: sy - ny });
+  }
+  return out;
+}
+
+/* поворот пиксельной точки вокруг центра (для маркеров поверх повёрнутой сцены) */
+function rotPx(p, deg, c) {
+  const a = deg * Math.PI / 180, co = Math.cos(a), si = Math.sin(a), dx = p[0] - c, dy = p[1] - c;
+  return [c + dx * co - dy * si, c + dx * si + dy * co];
+}
+const escAttr = (s) => esc(s).replace(/"/g, "&quot;");
+
+function realTerrainSVG(surr, castInfo, opts = {}) {
   if (!surr || (!surr.main && !(surr.waterways && surr.waterways.length))) return "";
-  const S = 420, R = surr.radius || 300, k = S / (2 * R), C = S / 2;
-  const proj = surr.proj;
+  const sat = opts.satellite !== false;
+  const R = opts.radius || (sat ? 130 : (surr.radius || 300));
+  const S = 440, k = S / (2 * R), C = S / 2;
+  const proj = surr.proj, ctr = surr.point;
   const toPx = (m) => [C + m[0] * k, C + m[1] * k];
   const geomM = (geom) => geom.map(g => proj.toXY(g.lat, g.lon));
-  const pathOf = (geom, close) => {
-    let pts = geomM(geom);
-    if (pts.length > 220) pts = pts.filter((_, i) => i % Math.ceil(pts.length / 220) === 0);
-    return pts.map((m, i) => (i ? "L" : "M") + toPx(m).map(v => v.toFixed(1)).join(",")).join(" ") + (close ? " Z" : "");
-  };
+  const clip = (pts) => pts.length > 220 ? pts.filter((_, i) => i % Math.ceil(pts.length / 220) === 0) : pts;
+  const pathOf = (geom, close) => clip(geomM(geom)).map((m, i) => (i ? "L" : "M") + toPx(m).map(v => v.toFixed(1)).join(",")).join(" ") + (close ? " Z" : "");
 
-  let body = `<rect width="${S}" height="${S}" fill="#cdd8c2"/>`;
-
-  for (const r of surr.reeds) body += `<path d="${pathOf(r.geom, true)}" fill="#9fb06a" opacity=".55"/>`;
-  for (const b of surr.beaches) body += `<path d="${pathOf(b.geom, true)}" fill="${C_.sand}" opacity=".8"/>`;
-
-  for (const w of surr.waters) {
-    const main = w === surr.main;
-    body += `<path d="${pathOf(w.geom, true)}" fill="${main ? "#73aec6" : "#9cc3d4"}" stroke="#3f7e98" stroke-width="1.2" opacity="${main ? 1 : .9}"/>`;
-  }
-  for (const ww of surr.waterways) {
-    body += `<path d="${pathOf(ww.geom, false)}" fill="none" stroke="#5aa0bd" stroke-width="3.2" stroke-linecap="round"/>`;
-    body += flowArrowsAlong(geomM(ww.geom), toPx);
-    if (ww.tags?.name) {
-      const mid = toPx(geomM(ww.geom)[Math.floor(ww.geom.length / 2)]);
-      body += `<text x="${mid[0] + 4}" y="${mid[1] - 4}" font-size="9" fill="#2c6175" font-style="italic" font-family="Lora,serif">${esc(ww.tags.name)}</text>`;
-    }
-  }
-  for (const br of surr.bridges) body += `<path d="${pathOf(br.geom, false)}" fill="none" stroke="#b3a98f" stroke-width="5" stroke-linecap="round"/>`;
-
+  /* ближний берег и поворот «вода вверх» (только для полигона, если берег в окне) */
+  let shoreM = null, bd = Infinity, rot = 0;
   if (surr.main) {
     const pts = geomM(surr.main.geom);
-    let bestM = null, bd = Infinity;
     for (let i = 0; i < pts.length - 1; i++) {
-      const cp = closestOnSeg([0, 0], pts[i], pts[i + 1]);
-      const d = Math.hypot(cp[0], cp[1]);
-      if (d < bd) { bd = d; bestM = cp; }
+      const cp = closestOnSeg([0, 0], pts[i], pts[i + 1]); const d = Math.hypot(cp[0], cp[1]);
+      if (d < bd) { bd = d; shoreM = cp; }
     }
-    if (bestM && bd > 0.5) {
-      const rec = (castInfo?.recM) || 20;
-      const dCast = Math.min(rec, bd * 0.9);
-      const u = [bestM[0] / bd, bestM[1] / bd];
-      const anglerM = [bestM[0] + u[0] * 7, bestM[1] + u[1] * 7];
-      const castM = [bestM[0] - u[0] * dCast, bestM[1] - u[1] * dCast];
-      const aPx = toPx(anglerM), cPx = toPx(castM), sPx = toPx(bestM);
-      body += `<path d="M${aPx[0].toFixed(1)},${aPx[1].toFixed(1)} Q${sPx[0].toFixed(1)},${(sPx[1] - 14).toFixed(1)} ${cPx[0].toFixed(1)},${cPx[1].toFixed(1)}" fill="none" stroke="rgba(232,85,61,.6)" stroke-width="1.8" stroke-dasharray="5 5"/>`;
-      body += anglerPin(aPx[0], aPx[1]);
-      body += castPoint(cPx[0], cPx[1], (castInfo?.recM ? Math.round(castInfo.recM) + " м" : ""));
+    if (shoreM && bd > 0.5 && bd < R * 1.1) {
+      const ang = Math.atan2(-shoreM[1], -shoreM[0]) * 180 / Math.PI; // вектор берег→вода
+      rot = -90 - ang;                                                // вода — вверх
     }
   }
-  body += `<circle cx="${C}" cy="${C}" r="4" fill="#1d3d4d"/><circle cx="${C}" cy="${C}" r="8" fill="none" stroke="#1d3d4d" stroke-width="1.4" opacity=".5"/>`;
 
-  const bar = 100 * k;
-  body += `<g transform="translate(14,${S - 18})"><line x1="0" y1="0" x2="${bar}" y2="0" stroke="#1d3d4d" stroke-width="2"/>
-    <line x1="0" y1="-3" x2="0" y2="3" stroke="#1d3d4d" stroke-width="2"/><line x1="${bar}" y1="-3" x2="${bar}" y2="3" stroke="#1d3d4d" stroke-width="2"/>
-    <text x="${bar + 6}" y="3.5" font-size="9.5" fill="#1d3d4d" font-family="Inter,sans-serif">100 м</text></g>`;
-  body += `<g transform="translate(${S - 22},22)"><path d="M0,-10 L4,6 L0,2 L-4,6 Z" fill="#1d3d4d"/><text x="0" y="-13" text-anchor="middle" font-size="9" fill="#1d3d4d" font-family="Inter,sans-serif">С</text></g>`;
+  /* --- ПОВОРАЧИВАЕМАЯ СЦЕНА: спутник + полупрозрачная «мультяшная» геометрия --- */
+  let scene = `<rect x="${-S}" y="${-S}" width="${3 * S}" height="${3 * S}" fill="#9aa98c"/>`;
+  if (sat) for (const t of esriTiles(ctr.lat, ctr.lon, R, proj)) {
+    const [px, py] = toPx([t.x, t.y]);
+    scene += `<image href="${t.url}" xlink:href="${t.url}" x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${(t.w * k).toFixed(1)}" height="${(t.h * k).toFixed(1)}" preserveAspectRatio="none"/>`;
+  }
+  for (const r of surr.reeds) scene += `<path d="${pathOf(r.geom, true)}" fill="#9fb06a" opacity="${sat ? .42 : .6}"/>`;
+  for (const b of surr.beaches) scene += `<path d="${pathOf(b.geom, true)}" fill="${C_.sand}" opacity="${sat ? .5 : .85}"/>`;
+  for (const w of surr.waters) {
+    const main = w === surr.main;
+    scene += `<path d="${pathOf(w.geom, true)}" fill="${main ? "#3f93b8" : "#5aa7c4"}" stroke="#1f6f90" stroke-width="1.4" opacity="${sat ? (main ? .3 : .34) : (main ? 1 : .9)}"/>`;
+  }
+  for (const ww of surr.waterways) {
+    scene += `<path d="${pathOf(ww.geom, false)}" fill="none" stroke="#46a3c6" stroke-width="3" stroke-linecap="round" opacity="${sat ? .8 : 1}"/>`;
+    scene += flowArrowsAlong(clip(geomM(ww.geom)), toPx);
+  }
+  for (const br of surr.bridges) scene += `<path d="${pathOf(br.geom, false)}" fill="none" stroke="#d8c187" stroke-width="5" stroke-linecap="round" opacity=".85"/>`;
 
-  return `<svg viewBox="0 0 ${S} ${S}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Рельеф точки, вид сверху">
-    <clipPath id="terClip"><rect width="${S}" height="${S}"/></clipPath><g clip-path="url(#terClip)">${body}</g></svg>`;
+  /* --- НЕПОВОРАЧИВАЕМЫЙ СЛОЙ: рыболов, точки, масштаб, компас, подписи --- */
+  let over = "";
+  if (shoreM && bd > 0.5 && bd < R * 1.1) {
+    const u = [shoreM[0] / bd, shoreM[1] / bd];
+    const aPx = rotPx(toPx([shoreM[0] + u[0] * 7, shoreM[1] + u[1] * 7]), rot, C);
+    over += anglerPin(aPx[0], aPx[1]);
+  }
+  (opts.spots || []).forEach((sp, i) => {
+    const p = rotPx(toPx([sp.mx, sp.my]), rot, C);
+    over += spotMarker(p[0], p[1], i + 1, sp.title, sp.tip);
+  });
+  over += `<circle cx="${C}" cy="${C}" r="3.5" fill="#fff" stroke="#1d3d4d" stroke-width="1.6"/>`;
+
+  const barM = R <= 160 ? 50 : 100, bar = barM * k;
+  over += `<g transform="translate(14,${S - 16})"><line x1="0" y1="0" x2="${bar.toFixed(1)}" y2="0" stroke="#fff" stroke-width="3.4"/><line x1="0" y1="0" x2="${bar.toFixed(1)}" y2="0" stroke="#1d3d4d" stroke-width="1.4"/>
+    <text x="${(bar + 6).toFixed(1)}" y="3.5" font-size="9.5" fill="#fff" stroke="#1d3d4d" stroke-width=".3" font-family="Inter,sans-serif">${barM} м</text></g>`;
+  over += `<g transform="translate(${S - 24},27) rotate(${rot.toFixed(1)})"><path d="M0,-12 L4,6 L0,2 L-4,6 Z" fill="#fff" stroke="#1d3d4d" stroke-width=".6"/></g>
+    <text x="${S - 24}" y="14" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" stroke="#1d3d4d" stroke-width=".3" font-family="Inter,sans-serif">С</text>`;
+  if (rot) {
+    over += `<text x="${C}" y="17" text-anchor="middle" font-size="11" font-weight="700" fill="#e6f6ff" stroke="#10455c" stroke-width=".5" font-family="Inter,sans-serif">вода ↑</text>
+      <text x="${C}" y="${S - 24}" text-anchor="middle" font-size="11" font-weight="700" fill="#f6ecd6" stroke="#5b4a2a" stroke-width=".5" font-family="Inter,sans-serif">берег ↓</text>`;
+  }
+  over += `<text x="${S - 6}" y="${S - 6}" text-anchor="end" font-size="7.5" fill="#fff" stroke="#000" stroke-width=".25" opacity=".9" font-family="Inter,sans-serif">© OpenStreetMap${sat ? " · Esri, Maxar" : ""}</text>`;
+
+  return `<svg viewBox="0 0 ${S} ${S}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" role="img" aria-label="Спутниковый вид точки: берег снизу, вода вверх">
+    <clipPath id="terClip"><rect width="${S}" height="${S}"/></clipPath>
+    <g clip-path="url(#terClip)"><g transform="rotate(${rot.toFixed(2)} ${C} ${C})">${scene}</g>${over}</g></svg>`;
+}
+
+/* Нумерованный кликабельный маркер точки ловли (поповер собирает app.js по data-*) */
+function spotMarker(x, y, n, title, tip) {
+  return `<g class="spot-marker" data-title="${escAttr(title)}" data-tip="${escAttr(tip)}" tabindex="0" role="button" aria-label="${escAttr(title)}" style="cursor:pointer">
+    <circle class="cast-pulse" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12" fill="none" stroke="${C.cast}" stroke-width="2"/>
+    <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12" fill="${C.cast}" stroke="#fff" stroke-width="2.5"/>
+    <text x="${x.toFixed(1)}" y="${(y + 4.4).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff" font-family="Inter,sans-serif">${n}</text>
+  </g>`;
+}
+
+/* ============================================================
+   ВЫБОР ТОЧЕК ЛОВЛИ по видимым объектам OSM (без выдумывания глубины)
+   Возвращает координаты в локальных метрах + поповер «при каком факторе».
+   ============================================================ */
+function selectFishingSpots(surr, profile, castInfo, state = {}, radius = 130) {
+  if (!surr) return [];
+  const proj = surr.proj;
+  const fish = FISHES[state.fishId] || null;
+  const fname = fish ? fish.name.toLowerCase() : "рыба";
+  const hab = fish ? fish.habitat : [];
+  const shallow = fish?.depth?.shallow ?? 0, deep = fish?.depth?.deep ?? 0;
+  const mn = Math.round(castInfo?.minM ?? 8), rec = Math.round(castInfo?.recM ?? 20);
+  const cand = [];
+
+  /* ближний берег полигона */
+  let shoreM = null, bd = Infinity, u = null;
+  if (surr.main) {
+    const pts = surr.main.geom.map(g => proj.toXY(g.lat, g.lon));
+    for (let i = 0; i < pts.length - 1; i++) { const cp = closestOnSeg([0, 0], pts[i], pts[i + 1]); const d = Math.hypot(cp[0], cp[1]); if (d < bd) { bd = d; shoreM = cp; } }
+    if (shoreM && bd > 0.5) u = [shoreM[0] / bd, shoreM[1] / bd];
+  }
+  const intoWater = (dist) => (shoreM && u) ? [shoreM[0] - u[0] * Math.min(dist, bd * 0.95), shoreM[1] - u[1] * Math.min(dist, bd * 0.95)] : [0, -dist];
+  const nearestOf = (geom) => { let best = null, dd = Infinity; for (const g of geom) { const p = proj.toXY(g.lat, g.lon); const d = Math.hypot(p[0], p[1]); if (d < dd) { dd = d; best = p; } } return best; };
+
+  /* 1) под берегом */
+  { const [mx, my] = intoWater(Math.max(4, mn * 0.5)); cand.push({ mx, my, pr: shallow > 0.6 || hab.includes("reeds") ? 3 : 2,
+    title: "Под берегом", tip: `Короткий заброс ${mn} м. На утренней и вечерней зорьке и в тихую погоду ${fname} кормится у самого берега — подавайте деликатно.` }); }
+
+  /* 2) кромка камыша */
+  if (surr.reeds?.length) {
+    const best = nearestOf(surr.reeds[0].geom);
+    if (best) { const m = Math.hypot(best[0], best[1]) || 1; cand.push({ mx: best[0] - best[0] / m * 4, my: best[1] - best[1] / m * 4, pr: hab.includes("reeds") || hab.includes("lilies") ? 5 : 2,
+      title: "Кромка камыша", tip: `Заброс вдоль стены тростника. Ветер, гонящий волну к камышу, сносит сюда корм; на зорях здесь засада хищника.` }); }
+  }
+
+  /* 3) устье притока */
+  if (surr.waterways?.length && surr.main) {
+    let mouth = null, dd = Infinity;
+    for (const ww of surr.waterways) { const p = nearestOf(ww.geom); if (p) { const d = Math.hypot(p[0], p[1]); if (d < dd) { dd = d; mouth = p; } } }
+    if (mouth) cand.push({ mx: mouth[0], my: mouth[1], pr: 4,
+      title: "Устье притока", tip: `Свежая вода и корм на струе — особенно в жару и после дождя. Рыба держится на границе мути и чистой воды.` });
+  }
+
+  /* 4) у моста / опор */
+  if (surr.bridges?.length) {
+    const pts = surr.bridges[0].geom.map(g => proj.toXY(g.lat, g.lon));
+    const m = pts[Math.floor(pts.length / 2)];
+    cand.push({ mx: m[0], my: m[1], pr: 3, title: "У моста / опор", tip: `Тень и затишье у опор — стоянка в жаркий полдень и при ярком солнце.` });
+  }
+
+  /* 5) дальше от берега / чистая вода */
+  { const [mx, my] = intoWater(Math.max(rec, mn + 6)); cand.push({ mx, my, pr: deep > 0.6 ? 4 : 1,
+    title: "Дальше от берега", tip: `Заброс ${rec} м на чистую воду. Когда у берега пусто и при сильном встречном ветре рыба отходит от берега.` }); }
+
+  const inView = cand.filter(s => Math.hypot(s.mx, s.my) <= radius * 0.92);
+  const out = (inView.length ? inView : cand).sort((a, b) => b.pr - a.pr).slice(0, 5);
+  if (!out.length) out.push({ mx: 0, my: 0, pr: 1, title: "Ваша точка", tip: "Точка, отмеченная на карте. Начните отсюда: веер забросов на разную дистанцию, чтобы нащупать рыбу." });
+  return out;
 }
 
 const C_ = { sand: "#e9dcb4" };
@@ -3287,14 +3426,15 @@ function selectSpots(state) {
 
   const cards = [];
 
-  const realSvg = state.osm ? realTerrainSVG(state.osm, state.castInfo) : "";
+  const fishingSpots = state.osm ? selectFishingSpots(state.osm, state.waterProfile, state.castInfo, state, 130) : [];
+  const realSvg = state.osm ? realTerrainSVG(state.osm, state.castInfo, { satellite: true, radius: 130, spots: fishingSpots }) : "";
   if (realSvg) {
     const ci = state.castInfo;
     cards.push({
-      key: "real", real: true,
-      title: "Ваша точка — реальный рельеф (300 м)",
-      desc: `Спутниковая геометрия вашего водоёма из OpenStreetMap. Рыболов поставлен на ближний берег, ✕ — реалистичная точка заброса${ci ? " (" + ci.label + ")" : ""}. ${ci?.note || ""}`,
-      meta: [ci ? `заброс ${ci.label}` : `заброс ${dist}`, state.osm.main ? "берег и урез воды" : "русло реки", state.osm.reeds?.length ? "камыш отмечен" : "по данным OSM"],
+      key: "real", real: true, spots: fishingSpots,
+      title: "Ваша точка — спутник (≈130 м)",
+      desc: `Реальный спутниковый снимок (Esri) с геометрией берега из OpenStreetMap. Карта повёрнута: берег снизу, вода вверх. Нажмите на номера — где и при каком факторе пробовать ${fishName}.`,
+      meta: [`точек ловли: ${fishingSpots.length}`, ci ? `заброс ${ci.label}` : `заброс ${dist}`, state.osm.reeds?.length ? "камыш отмечен" : "по данным OSM"],
       svg: realSvg, profileSvg: "",
     });
   }
@@ -3316,7 +3456,8 @@ function selectSpots(state) {
 /* ============================================================
    КлёвГид — логика приложения: мастер шагов, карта, рендер.
    Архитектура описана в ai/docs/02-architecture.md
-   ============================================================ */
+   ============================================================ */
+
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const STORE_KEY = "klevgid.v1";
@@ -3910,7 +4051,7 @@ function renderResult() {
   const noteEl = $("#spotsNote");
   if (noteEl) {
     noteEl.textContent = state.surr
-      ? `Первая схема — реальный рельеф вашей точки по карте (радиус 300 м). ✕ — реалистичная точка заброса для вашей снасти${state.castInfo ? ": " + state.castInfo.label : ""}.`
+      ? `Первая схема — спутник вашей точки (Esri, ≈130 м), берег снизу → вода вверх. Точки ловли пронумерованы; заброс${state.castInfo ? ": " + state.castInfo.label : ""}.`
       : `Типовые рабочие точки для вашего водоёма и рыбы. ✕ — куда забрасывать${state.castInfo ? " (" + state.castInfo.label + ")" : ""}.`;
   }
   $("#spotsGrid").innerHTML = spots.map(s => `
@@ -3977,6 +4118,48 @@ try {
   }
 } catch { /* пусто */ }
 goTo(0);
+
+/* ---------- Поповеры точек ловли на спутниковой схеме ---------- */
+let _spotPop = null;
+function closeSpotPop() { if (_spotPop) { _spotPop.remove(); _spotPop = null; } }
+function initSpotPopovers() {
+  const grid = $("#spotsGrid");
+  if (!grid || grid.dataset.spotWired) return;
+  grid.dataset.spotWired = "1";
+  grid.addEventListener("click", (e) => {
+    const m = e.target.closest && e.target.closest(".spot-marker");
+    closeSpotPop();
+    if (!m) return;
+    e.stopPropagation();
+    const wrap = m.closest(".spot-svg-wrap");
+    if (!wrap) return;
+    wrap.style.position = "relative";
+    const pop = document.createElement("div");
+    pop.className = "spot-popover";
+    const b = document.createElement("b"); b.textContent = m.getAttribute("data-title") || "";
+    const p = document.createElement("p"); p.textContent = m.getAttribute("data-tip") || "";
+    pop.append(b, p);
+    wrap.appendChild(pop);
+    _spotPop = pop;
+    const r = m.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+    const cx = r.left - wr.left + r.width / 2;
+    pop.style.left = Math.round(Math.max(8, Math.min(cx, wr.width - 8))) + "px";
+    const below = r.top - wr.top + r.height + 8;
+    if (below + pop.offsetHeight <= wr.height) {
+      pop.style.top = Math.round(below) + "px"; pop.classList.add("below");
+    } else {
+      pop.style.top = Math.round(r.top - wr.top - pop.offsetHeight - 8) + "px"; pop.classList.add("above");
+    }
+  });
+  grid.addEventListener("keydown", (e) => {
+    const t = e.target;
+    if ((e.key === "Enter" || e.key === " ") && t.classList && t.classList.contains("spot-marker")) {
+      e.preventDefault(); t.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+  });
+  document.addEventListener("click", closeSpotPop);
+}
+initSpotPopovers();
 
 })();
 </script>

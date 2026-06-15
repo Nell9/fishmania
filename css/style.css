@@ -484,3 +484,29 @@ input[type="number"]:focus, select:focus { outline: none; border-color: var(--ac
 @media (max-width: 400px) {
   .tiles, .tiles-4, .fish-grid, .cond-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- Спутниковая схема: маркеры точек ловли и поповер ---------- */
+.spot-marker { transition: transform .15s var(--ease); transform-box: fill-box; transform-origin: center; outline: none; }
+.spot-marker:hover { transform: scale(1.18); }
+.spot-marker:focus-visible { filter: drop-shadow(0 0 0 2px #fff) drop-shadow(0 0 0 4px var(--accent)); }
+
+.spot-popover {
+  position: absolute; transform: translateX(-50%); z-index: 6;
+  width: max-content; max-width: 230px;
+  background: rgba(16, 69, 92, .96); color: #fff;
+  padding: 9px 12px; border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+  font-family: var(--font-ui, "Inter", sans-serif);
+  animation: spotPopIn .16s var(--ease);
+  pointer-events: none;
+}
+.spot-popover b { display: block; font-size: .86rem; margin-bottom: 3px; }
+.spot-popover p { margin: 0; font-size: .78rem; line-height: 1.4; opacity: .92; }
+.spot-popover::after {
+  content: ""; position: absolute; left: 50%; margin-left: -6px;
+  border: 6px solid transparent;
+}
+.spot-popover.below::after { top: -12px; border-bottom-color: rgba(16, 69, 92, .96); }
+.spot-popover.above::after { bottom: -12px; border-top-color: rgba(16, 69, 92, .96); }
+@keyframes spotPopIn { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .spot-popover { animation: none; } .spot-marker { transition: none; } }
