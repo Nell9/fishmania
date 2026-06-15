@@ -20,10 +20,11 @@ import { latPresence } from "./engine.js";
 import { SIZE_NAMES, fmtHa } from "./osm.js";
 
 export const AI_CONFIG = {
-  provider: "local",                 // позже: "claude"
-  endpoint: "/api/ai/analyze",       // бэкенд-прокси к Claude CLI
-  model: "claude-fable-5",
+  provider: "auto",                  // "auto" | "backend" | "local"
+  base: "",                          // базовый URL бэкенда; пусто = тот же origin (/api/...)
+  endpoints: { analyze: "/api/ai/analyze", tactics: "/api/ai/tactics", health: "/api/health" },
 };
+let _backendOk = null;               // кэш доступности бэкенда на сессию
 
 const firstSentence = (s) => (s || "").split(/(?<=[.!?])\s/)[0];
 
@@ -225,27 +226,52 @@ ${facts}
 ${corpus}`;
 }
 
-async function analyzeClaude(input, ms = 30000) {
-  if (AI_CONFIG.provider !== "claude") throw new AINotConfigured("Claude-провайдер выключен (заглушка)");
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
+/* Доступность бэкенда: один лёгкий пробник на сессию (короткий таймаут). */
+export async function backendAvailable(ms = 2000) {
+  if (AI_CONFIG.provider === "local") return false;
+  if (_backendOk !== null) return _backendOk;
   try {
-    const res = await fetch(AI_CONFIG.endpoint, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: AI_CONFIG.model, prompt: buildClaudePrompt(input), context: assembleContext(input) }),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new AINotConfigured("Бэкенд AI вернул " + res.status);
-    const data = await res.json();
-    return { provider: "claude", ...data };
-  } finally { clearTimeout(timer); }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    const res = await fetch(AI_CONFIG.base + AI_CONFIG.endpoints.health, { signal: ctrl.signal });
+    clearTimeout(t);
+    _backendOk = res.ok;
+  } catch { _backendOk = false; }
+  return _backendOk;
 }
 
-/* ПУБЛИЧНАЯ ТОЧКА ВХОДА */
+async function postJSON(url, body, ms) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(AI_CONFIG.base + url, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body), signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } finally { clearTimeout(t); }
+}
+
+/* Разбор водоёма через бэкенд (/api/ai/analyze). Бэкенд сам выбирает claude/local. */
+async function analyzeBackend(input, ms = 8000) {
+  const ctx = assembleContext(input);
+  const data = await postJSON(AI_CONFIG.endpoints.analyze,
+    { profile: ctx, month: ctx.month, waterTemp: ctx.waterTemp }, ms);
+  return { ...data, provider: data.provider || "backend" };
+}
+
+/* Тактика + честный прогноз шанса через бэкенд (/api/ai/tactics). */
+export async function fetchTactics(payload, ms = 12000) {
+  return await postJSON(AI_CONFIG.endpoints.tactics, payload, ms);
+}
+
+/* ПУБЛИЧНАЯ ТОЧКА ВХОДА — разбор водоёма (бэкенд при доступности, иначе локально). */
 export async function analyzeWater(input) {
-  if (AI_CONFIG.provider === "claude") {
-    try { return await analyzeClaude(input); }
-    catch (e) {
+  if (AI_CONFIG.provider !== "local" && await backendAvailable()) {
+    try {
+      return await analyzeBackend(input);
+    } catch (e) {
       const local = analyzeLocal(input);
       local.notes = ["AI-бэкенд недоступен — показан локальный экспертный разбор.", ...local.notes];
       return local;

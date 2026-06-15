@@ -16,6 +16,7 @@
 | [08-roadmap.md](08-roadmap.md) | Планы развития |
 | [09-ai-analyst.md](09-ai-analyst.md) | AI-аналитик водоёма (RAG, провайдеры, подключение Claude) |
 | [10-osm-terrain.md](10-osm-terrain.md) | OSM: детекция воды, рельеф 300 м, дистанция заброса |
+| [12-backend.md](12-backend.md) | AI-бэкенд: FastAPI, SQLite-база повадок, RAG, контракты /api/* |
 | [CHANGELOG.md](CHANGELOG.md) | История изменений |
 
 ## Быстрый старт

@@ -12,7 +12,7 @@ import { gaugeSVG, hourlyChartSVG, pressureChartSVG, tempChartSVG,
          windCompassSVG, moonSVG, fishSVG, waterIconSVG, animateCount } from "./charts.js";
 import { selectSpots } from "./spotmaps.js";
 import { detectWater, fetchSurroundings, profileWater, realisticCastDistance, SIZE_NAMES, fmtHa } from "./osm.js";
-import { analyzeWater } from "./ai-analyst.js";
+import { analyzeWater, backendAvailable, fetchTactics } from "./ai-analyst.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -427,7 +427,9 @@ function renderFishGrid() {
   let list, aiMode = false;
   if (state.aiAnalysis?.species?.length) {
     aiMode = true;
-    list = state.aiAnalysis.species.map(s => ({
+    const _sp = state.aiAnalysis.species.filter(s => FISHES[s.id]);
+    const _shown = _sp.filter(s => s.confidence >= 0.12);
+    list = (_shown.length >= 3 ? _shown : _sp.slice(0, 3)).map(s => ({
       id: s.id, f: FISHES[s.id], ai: s, a: fishActivityNow(s.id, ctx) || { score: 0, why: "" },
     }));
   } else {
@@ -634,6 +636,8 @@ function renderResult() {
       <div class="sum-item"><b>Снасть</b><span>${sum.tackle}</span></div>
       <div class="sum-item"><b>Зорьки</b><span>${fmt(bite.sunrise)} / ${fmt(bite.sunset)}</span></div>
     </div>`;
+
+  enhanceTacticsWithBackend(bite);
 }
 
 $("#printBtn").addEventListener("click", () => window.print());
@@ -716,3 +720,48 @@ function initSpotPopovers() {
   document.addEventListener("click", closeSpotPop);
 }
 initSpotPopovers();
+
+/* ---------- Прогрессивное уточнение тактики/шанса бэкендом (фолбэк — локальный) ---------- */
+function _escH(s) { return String(s == null ? "" : s).replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c])); }
+function _backendWeather() {
+  const cur = state.weather && state.weather.current;
+  return {
+    waterTemp: state.waterTemp,
+    airTemp: cur ? cur.airTemp : null,
+    pressureMm: cur ? cur.pressureMm : null,
+    windMs: cur ? cur.windMs : null,
+    windDir: cur ? cur.windDir : null,
+    clouds: cur ? cur.clouds : null,
+    precip: cur ? cur.precip : null,
+  };
+}
+async function enhanceTacticsWithBackend(bite) {
+  try {
+    if (!(await backendAvailable())) return;
+    const payload = {
+      species: state.fishId,
+      profile: state.waterProfile || { type: state.water, lat: state.lat, typeName: WATERS[state.water] && WATERS[state.water].name },
+      weather: _backendWeather(),
+      month: (state.weather && state.weather.current ? state.weather.current.time : new Date()).getMonth(),
+      period: bite.period,
+      tackle: state.tackle,
+      baits: state.baitsOwned || [],
+    };
+    const t = await fetchTactics(payload);
+    if (!t || typeof t.chancePct !== "number") return;
+    const g = $("#gaugeCard");
+    if (g) {
+      g.innerHTML = gaugeSVG(t.chancePct) +
+        `<div class="gauge-verdict">${_escH((t.verdict && t.verdict.title) || bite.verdict.title)}</div>
+         <p class="gauge-phrase">${_escH((t.verdict && t.verdict.phrase) || bite.verdict.phrase)}</p>
+         <p class="ai-source">прогноз ИИ-бэкенда (${_escH(t.provider)})</p>`;
+      animateCount(g.querySelector("[data-gauge-num]"), t.chancePct, 1200, "%");
+    }
+    if (Array.isArray(t.tactics) && t.tactics.length) {
+      $("#tacticsList").innerHTML = t.tactics.map(x =>
+        `<div class="tactic-item"><div class="tactic-icon">🎣</div><div><b>${_escH(x.title)}</b><p>${_escH(x.text)}</p></div></div>`).join("") +
+        (t.rationale ? `<p class="ai-source">${_escH(t.rationale)}</p>` : "");
+    }
+  } catch (e) { /* локальный результат уже на экране — ничего не делаем */ }
+}
+

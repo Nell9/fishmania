@@ -117,3 +117,61 @@ GitHub Pages / Cloudflare Pages / Netlify: залить папку как ест
 ## Обновление данных рыб
 
 Вся база — `js/fishdb.js`. Правка файла + сброс кэша (`Ctrl+F5` или подняли `expires`) — никакой пересборки.
+
+## AI-бэкенд (uvicorn + nginx + systemd)
+
+Опциональный слой (`backend/`). Без него сайт работает в локальном режиме; с ним разбор и
+тактику считает Claude. Ключ — только в окружении сервиса, в git не попадает.
+
+### 1. Установка
+
+```bash
+cd /srv/klevgid/backend
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+python build_db.py            # создаёт klevgid.db из seed/fishdb.json
+```
+
+### 2. systemd-юнит `/etc/systemd/system/klevgid-api.service`
+
+```ini
+[Unit]
+Description=KlevGid AI backend
+After=network.target
+
+[Service]
+WorkingDirectory=/srv/klevgid/backend
+Environment=ANTHROPIC_API_KEY=sk-ant-...
+Environment=KLEVGID_MODEL_ANALYZE=claude-haiku-4-5-20251001
+Environment=KLEVGID_MODEL_TACTICS=claude-sonnet-4-6
+Environment=KLEVGID_CORS=*
+ExecStart=/srv/klevgid/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+User=www-data
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+systemctl daemon-reload && systemctl enable --now klevgid-api
+curl localhost:8000/api/health
+```
+
+### 3. nginx — проксирование `/api/`
+
+В `server { … }` рядом с раздачей статики:
+
+```nginx
+location /api/ {
+    proxy_pass         http://127.0.0.1:8000;
+    proxy_set_header   Host $host;
+    proxy_set_header   X-Real-IP $remote_addr;
+    proxy_read_timeout 60s;
+}
+```
+
+Если фронт и API на одном домене, `AI_CONFIG.base` оставить пустым (тот же origin). Ключ
+храните только в юните (или `EnvironmentFile=`), не в репозитории. Обновление базы знаний после
+правок данных: `node ai/tools/export_fishdb.mjs js > backend/seed/fishdb.json && python build_db.py`,
+затем `systemctl restart klevgid-api`.

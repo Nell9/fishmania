@@ -73,3 +73,24 @@ state = {
 ## Модульные границы
 
 `fishdb / astro / weather(кроме fetch) / engine / spotmaps` не трогают DOM — их можно гонять в Node для тестов и переносить на сервер как есть.
+
+## Бэкенд-слой (v1.2.0)
+
+Статика осталась самодостаточной, но появился опциональный AI-слой — тонкий Python-сервис
+`backend/` (FastAPI + SQLite + RAG + Anthropic SDK). Он отвечает за «умный» разбор видового
+состава и тактику с честным прогнозом клёва; ключ Claude живёт только в окружении сервера.
+
+```
+[браузер: статика js/]  ──fetch──>  nginx  ──/api/──>  uvicorn (FastAPI)
+   AI_CONFIG.provider="auto"                              ├─ rag.py  → SQLite (повадки)
+   backendAvailable() (пробник /api/health)               ├─ claude_client.py → Claude
+   фолбэк → локальный движок (ai-analyst/engine)          └─ engine.py (local-фолбэк)
+```
+
+- Доступности нет / сбой → фронтенд мгновенно откатывается на локальный движок (тот же расчёт).
+- Граница модулей сохранена: `fishdb/astro/weather/engine/spotmaps/osm/ai-analyst` без DOM;
+  их логика воспроизведена на сервере (`backend/app/engine.py`) для парити-фолбэка.
+- Полное описание схемы, таблиц и контрактов — в `12-backend.md`.
+
+Схемы точек ловли (`spotmaps.realTerrainSVG`) с v1.2.0 рисуют спутниковый снимок Esri под
+геометрией OSM с поворотом «берег снизу → вода вверх» и кликабельными точками (см. `10-osm-terrain.md`).

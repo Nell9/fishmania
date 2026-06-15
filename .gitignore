@@ -13,3 +13,14 @@ dist/
 
 # конфиг fail2ban — нужен в репозитории (исключение из *.local)
 !deploy/fail2ban-jail.local
+
+# backend artifacts
+backend/klevgid.db
+*.db
+__pycache__/
+*.pyc
+backend/.env
+backend/.venv/
+*.db-journal
+*.db-wal
+*.db-shm
