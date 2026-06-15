@@ -418,6 +418,55 @@ input[type="number"]:focus, select:focus { outline: none; border-color: var(--ac
   .card { box-shadow: none; break-inside: avoid; }
 }
 
+/* ============ AI-разбор водоёма ============ */
+.water-report { margin-top: 18px; }
+.water-card, .ai-card { animation: condIn .5s var(--ease); }
+.ai-panel { margin-bottom: 22px; }
+.ai-panel:empty { display: none; }
+.wc-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.wc-head h4 { margin: 0; font-family: var(--font-display); font-size: 1.12rem; }
+.dq-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.dq { font-size: .7rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.dq-osm { background: var(--good-soft); color: var(--good); }
+.dq-inf { background: var(--warn-soft); color: var(--warn); }
+.dq-ai  { background: var(--accent-soft); color: var(--accent-deep); }
+.wc-sum { font-size: .95rem; color: var(--ink-2); line-height: 1.55; margin: 4px 0 12px; }
+.sp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sp-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--surface-tint); border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 13px; font-size: .85rem; font-weight: 600; color: var(--ink);
+}
+.sp-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot.good { background: var(--good); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+.wc-ev { margin-top: 14px; font-size: .85rem; }
+.wc-ev summary { cursor: pointer; font-weight: 600; color: var(--water-deep); }
+.wc-ev ul { margin: 10px 0 6px; padding-left: 20px; color: var(--ink-2); }
+.wc-ev li { margin: 3px 0; }
+.wc-note { font-size: .82rem; color: var(--ink-3); margin: 4px 0; }
+
+.water-bad, .water-warn { display: flex; flex-direction: column; gap: 6px; animation: popIn .35s var(--ease); }
+.water-bad { border-color: color-mix(in srgb, var(--bad) 40%, transparent); background: var(--bad-soft); }
+.water-bad b { color: var(--bad); }
+.water-warn { border-color: color-mix(in srgb, var(--warn) 40%, transparent); background: var(--warn-soft); }
+.water-bad span, .water-warn span { font-size: .88rem; color: var(--ink-2); }
+.linklike { background: none; border: 0; color: var(--accent-deep); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; padding: 0; }
+
+.auto-tag {
+  font-size: .62rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+  color: var(--good); background: var(--good-soft); border-radius: 999px; padding: 2px 7px; vertical-align: 2px;
+}
+.auto-note { color: var(--good); font-weight: 500; }
+
+.fish-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.conf-badge { display: inline-flex; align-items: center; font-size: .74rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+.conf-badge.good { background: var(--good-soft); color: var(--good); }
+.conf-badge.warn { background: var(--warn-soft); color: var(--warn); }
+.conf-badge.bad  { background: var(--bad-soft); color: var(--bad); }
+
+.spot-card.spot-real { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-1); }
+.spot-card.spot-real .spot-svg-wrap { background: #cdd8c2; }
+
 /* ============ Адаптив ============ */
 @media (max-width: 900px) {
   .map-layout, .result-top, .result-cols, .cond-extra { grid-template-columns: 1fr; }

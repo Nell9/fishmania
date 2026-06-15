@@ -160,8 +160,12 @@ export function computeBite(state) {
   let total = F.reduce((s, f) => s + f.score * f.weight, 0) /
               F.reduce((s, f) => s + f.weight, 0);
 
-  /* Жёсткий потолок, если вида в водоёме практически нет */
-  const presence = wAff * pres;
+  /* Жёсткий потолок, если вида в водоёме практически нет.
+     Если AI-аналитик оценил правдоподобие вида на конкретном водоёме
+     (по реальному рельефу OSM), используем его как более точную оценку
+     присутствия — иначе падаем на базовое waters×latPresence. */
+  const aiConf = state.aiAnalysis?.species?.find(s => s.id === fishId)?.confidence;
+  const presence = aiConf != null ? aiConf : wAff * pres;
   if (presence < 0.15) total = Math.min(total, 0.14);
   else if (presence < 0.35) total = Math.min(total, 0.45);
 

@@ -14,6 +14,8 @@
 | [06-design-system.md](06-design-system.md) | Палитра, типографика, компоненты, анимации |
 | [07-deployment.md](07-deployment.md) | Развёртывание на сервере (nginx, Docker) |
 | [08-roadmap.md](08-roadmap.md) | Планы развития |
+| [09-ai-analyst.md](09-ai-analyst.md) | AI-аналитик водоёма (RAG, провайдеры, подключение Claude) |
+| [10-osm-terrain.md](10-osm-terrain.md) | OSM: детекция воды, рельеф 300 м, дистанция заброса |
 | [CHANGELOG.md](CHANGELOG.md) | История изменений |
 
 ## Быстрый старт

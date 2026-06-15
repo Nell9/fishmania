@@ -61,7 +61,7 @@
         <span class="hero-note">Бесплатно · без регистрации · реальная метеосводка</span>
       </div>
       <div class="hero-stats reveal d4">
-        <div class="hstat"><b data-count="15">0</b><span>видов рыбы в базе</span></div>
+        <div class="hstat"><b data-count="22">0</b><span>вида рыбы в базе</span></div>
         <div class="hstat"><b data-count="9">0</b><span>факторов клёва в модели</span></div>
         <div class="hstat"><b data-count="24">0</b><span>часа прогноза активности</span></div>
         <div class="hstat"><b data-count="7">0</b><span>типов водоёмов</span></div>
@@ -75,12 +75,12 @@
       <div class="step-head reveal">
         <span class="step-badge">Шаг 1</span>
         <h2>Где будете ловить?</h2>
-        <p>Поставьте точку на карте, нажмите «Моё местоположение» или введите координаты вручную. По этой точке мы запросим реальную погоду и рассчитаем температуру воды.</p>
+        <p>Поставьте точку <b>на водоёме</b> — кликните по реке, озеру или пруду на карте, нажмите «Моё местоположение» или введите координаты. Сайт проверит, что это вода, определит тип водоёма по карте и сразу разберёт, какая рыба здесь водится.</p>
       </div>
       <div class="map-layout reveal">
         <div class="map-wrap">
           <div id="map" class="map" aria-label="Карта выбора точки"></div>
-          <div class="map-hint" id="mapHint">Кликните по карте, чтобы поставить точку</div>
+          <div class="map-hint" id="mapHint">Кликните по водоёму — реке, озеру или пруду</div>
         </div>
         <aside class="map-side">
           <button class="btn btn-primary btn-block" id="geoBtn">
@@ -102,6 +102,7 @@
           <p class="fineprint">Точка нужна только для расчёта — никуда не отправляется и не сохраняется на сервере.</p>
         </aside>
       </div>
+      <div id="waterReport" class="water-report" hidden></div>
       <div class="step-actions reveal">
         <button class="btn btn-primary" id="toStep2" disabled>Дальше: тип водоёма →</button>
       </div>
@@ -185,6 +186,7 @@
         <h2>Кого ловим?</h2>
         <p id="fishIntro">Показана только рыба, которая реально обитает в выбранном типе водоёма в вашем регионе. Бейдж — её активность прямо сейчас.</p>
       </div>
+      <div id="aiPanel" class="ai-panel"></div>
       <div class="fish-grid" id="fishGrid"></div>
       <div class="step-actions reveal">
         <button class="btn btn-ghost" data-back="3">← Назад</button>
@@ -251,7 +253,7 @@
 
       <div class="spots-block reveal">
         <h3 class="block-title">Схемы точек ловли</h3>
-        <p class="block-note">Типовые рабочие точки для вашего водоёма и рыбы. ✕ — куда забрасывать.</p>
+        <p class="block-note" id="spotsNote">Типовые рабочие точки для вашего водоёма и рыбы. ✕ — куда забрасывать.</p>
         <div class="spots-grid" id="spotsGrid"></div>
       </div>
 

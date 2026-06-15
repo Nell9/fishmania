@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>КлёвГид — умный помощник рыбака (автономная версия)</title>
+<title>КлёвГид — умный помощник рыбака</title>
 <meta name="description" content="КлёвГид рассчитывает шанс клёва по реальной погоде, подсказывает рыбу, насадку, тактику и точки ловли на вашем водоёме.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80'%3E%F0%9F%8E%A3%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -431,6 +431,55 @@ input[type="number"]:focus, select:focus { outline: none; border-color: var(--ac
   .card { box-shadow: none; break-inside: avoid; }
 }
 
+/* ============ AI-разбор водоёма ============ */
+.water-report { margin-top: 18px; }
+.water-card, .ai-card { animation: condIn .5s var(--ease); }
+.ai-panel { margin-bottom: 22px; }
+.ai-panel:empty { display: none; }
+.wc-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.wc-head h4 { margin: 0; font-family: var(--font-display); font-size: 1.12rem; }
+.dq-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.dq { font-size: .7rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.dq-osm { background: var(--good-soft); color: var(--good); }
+.dq-inf { background: var(--warn-soft); color: var(--warn); }
+.dq-ai  { background: var(--accent-soft); color: var(--accent-deep); }
+.wc-sum { font-size: .95rem; color: var(--ink-2); line-height: 1.55; margin: 4px 0 12px; }
+.sp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sp-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--surface-tint); border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 13px; font-size: .85rem; font-weight: 600; color: var(--ink);
+}
+.sp-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot.good { background: var(--good); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+.wc-ev { margin-top: 14px; font-size: .85rem; }
+.wc-ev summary { cursor: pointer; font-weight: 600; color: var(--water-deep); }
+.wc-ev ul { margin: 10px 0 6px; padding-left: 20px; color: var(--ink-2); }
+.wc-ev li { margin: 3px 0; }
+.wc-note { font-size: .82rem; color: var(--ink-3); margin: 4px 0; }
+
+.water-bad, .water-warn { display: flex; flex-direction: column; gap: 6px; animation: popIn .35s var(--ease); }
+.water-bad { border-color: color-mix(in srgb, var(--bad) 40%, transparent); background: var(--bad-soft); }
+.water-bad b { color: var(--bad); }
+.water-warn { border-color: color-mix(in srgb, var(--warn) 40%, transparent); background: var(--warn-soft); }
+.water-bad span, .water-warn span { font-size: .88rem; color: var(--ink-2); }
+.linklike { background: none; border: 0; color: var(--accent-deep); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; padding: 0; }
+
+.auto-tag {
+  font-size: .62rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+  color: var(--good); background: var(--good-soft); border-radius: 999px; padding: 2px 7px; vertical-align: 2px;
+}
+.auto-note { color: var(--good); font-weight: 500; }
+
+.fish-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.conf-badge { display: inline-flex; align-items: center; font-size: .74rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+.conf-badge.good { background: var(--good-soft); color: var(--good); }
+.conf-badge.warn { background: var(--warn-soft); color: var(--warn); }
+.conf-badge.bad  { background: var(--bad-soft); color: var(--bad); }
+
+.spot-card.spot-real { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-1); }
+.spot-card.spot-real .spot-svg-wrap { background: #cdd8c2; }
+
 /* ============ Адаптив ============ */
 @media (max-width: 900px) {
   .map-layout, .result-top, .result-cols, .cond-extra { grid-template-columns: 1fr; }
@@ -500,7 +549,7 @@ input[type="number"]:focus, select:focus { outline: none; border-color: var(--ac
         <span class="hero-note">Бесплатно · без регистрации · реальная метеосводка</span>
       </div>
       <div class="hero-stats reveal d4">
-        <div class="hstat"><b data-count="15">0</b><span>видов рыбы в базе</span></div>
+        <div class="hstat"><b data-count="22">0</b><span>вида рыбы в базе</span></div>
         <div class="hstat"><b data-count="9">0</b><span>факторов клёва в модели</span></div>
         <div class="hstat"><b data-count="24">0</b><span>часа прогноза активности</span></div>
         <div class="hstat"><b data-count="7">0</b><span>типов водоёмов</span></div>
@@ -514,12 +563,12 @@ input[type="number"]:focus, select:focus { outline: none; border-color: var(--ac
       <div class="step-head reveal">
         <span class="step-badge">Шаг 1</span>
         <h2>Где будете ловить?</h2>
-        <p>Поставьте точку на карте, нажмите «Моё местоположение» или введите координаты вручную. По этой точке мы запросим реальную погоду и рассчитаем температуру воды.</p>
+        <p>Поставьте точку <b>на водоёме</b> — кликните по реке, озеру или пруду на карте, нажмите «Моё местоположение» или введите координаты. Сайт проверит, что это вода, определит тип водоёма по карте и сразу разберёт, какая рыба здесь водится.</p>
       </div>
       <div class="map-layout reveal">
         <div class="map-wrap">
           <div id="map" class="map" aria-label="Карта выбора точки"></div>
-          <div class="map-hint" id="mapHint">Кликните по карте, чтобы поставить точку</div>
+          <div class="map-hint" id="mapHint">Кликните по водоёму — реке, озеру или пруду</div>
         </div>
         <aside class="map-side">
           <button class="btn btn-primary btn-block" id="geoBtn">
@@ -541,6 +590,7 @@ input[type="number"]:focus, select:focus { outline: none; border-color: var(--ac
           <p class="fineprint">Точка нужна только для расчёта — никуда не отправляется и не сохраняется на сервере.</p>
         </aside>
       </div>
+      <div id="waterReport" class="water-report" hidden></div>
       <div class="step-actions reveal">
         <button class="btn btn-primary" id="toStep2" disabled>Дальше: тип водоёма →</button>
       </div>
@@ -624,6 +674,7 @@ input[type="number"]:focus, select:focus { outline: none; border-color: var(--ac
         <h2>Кого ловим?</h2>
         <p id="fishIntro">Показана только рыба, которая реально обитает в выбранном типе водоёма в вашем регионе. Бейдж — её активность прямо сейчас.</p>
       </div>
+      <div id="aiPanel" class="ai-panel"></div>
       <div class="fish-grid" id="fishGrid"></div>
       <div class="step-actions reveal">
         <button class="btn btn-ghost" data-back="3">← Назад</button>
@@ -690,7 +741,7 @@ input[type="number"]:focus, select:focus { outline: none; border-color: var(--ac
 
       <div class="spots-block reveal">
         <h3 class="block-title">Схемы точек ловли</h3>
-        <p class="block-note">Типовые рабочие точки для вашего водоёма и рыбы. ✕ — куда забрасывать.</p>
+        <p class="block-note" id="spotsNote">Типовые рабочие точки для вашего водоёма и рыбы. ✕ — куда забрасывать.</p>
         <div class="spots-grid" id="spotsGrid"></div>
       </div>
 
@@ -1050,7 +1101,151 @@ const FISHES = {
     habitat: ["reeds", "lilies", "snags"],
     note: "Неприхотливый вселенец заморных прудов: клюёт жадно почти всегда.",
   },
+  bleak: {
+    name: "Уклейка", latin: "Alburnus alburnus", shape: "roach", hue: "#b9c0cc",
+    waters: { river_big: .8, reservoir: .8, lake: .7, canal: .7, river_small: .6, oxbow: .5, pond: .3 },
+    months: [.1,.1,.2,.5,.85,1,.95,.9,.7,.4,.2,.1],
+    temp: [6, 14, 24, 28],
+    times: { dawn: .7, day: 1, dusk: .8, night: .05 },
+    depth: { shallow: 1, mid: .4, deep: .1 },
+    baits: { maggot: .95, dough: .8, bread: .7, bloodworm: .6 },
+    tackle: { float: 1, feeder: .2, spinning: .05, livebait: 0 },
+    lat: [43, 64],
+    habitat: ["flat", "bridge"],
+    note: "Верховая стайная мелочь. Держится в верхних слоях, берёт весь день — отличный живец на хищника.",
+  },
+  ruffe: {
+    name: "Ёрш", latin: "Gymnocephalus cernua", shape: "perch", hue: "#8a8763",
+    waters: { lake: .8, river_big: .8, reservoir: .8, canal: .6, river_small: .6, oxbow: .5, pond: .2 },
+    months: [.6,.55,.55,.6,.7,.6,.5,.55,.75,.85,.8,.7],
+    temp: [1, 4, 16, 22],
+    times: { dawn: .8, day: .5, dusk: .9, night: .85 },
+    depth: { shallow: .2, mid: .8, deep: .9 },
+    baits: { bloodworm: 1, worm: .85, maggot: .7 },
+    tackle: { float: .8, feeder: .7, spinning: .05, livebait: 0 },
+    lat: [45, 68],
+    habitat: ["dropoff", "flat", "bridge"],
+    note: "Донная сумеречная рыба глубоких прохладных мест. Активна в холод, когда другие молчат.",
+  },
+  gudgeon: {
+    name: "Пескарь", latin: "Gobio gobio", shape: "roach", hue: "#9a8e6a",
+    waters: { river_small: .9, river_big: .7, lake: .5, canal: .5, reservoir: .4, oxbow: .3, pond: .2 },
+    months: [.1,.1,.25,.55,.85,.95,.9,.85,.7,.45,.2,.1],
+    temp: [6, 12, 22, 26],
+    times: { dawn: .8, day: 1, dusk: .8, night: .1 },
+    depth: { shallow: .9, mid: .7, deep: .2 },
+    baits: { worm: .9, bloodworm: .85, maggot: .8 },
+    tackle: { float: 1, feeder: .4, spinning: 0, livebait: 0 },
+    lat: [43, 62],
+    habitat: ["flat", "bridge"],
+    note: "Донный житель чистых песчано-галечных струй. Индикатор чистой воды и лучший живец для окуня.",
+  },
+  verkhovka: {
+    name: "Верховка", latin: "Leucaspius delineatus", shape: "roach", hue: "#c2c7cf",
+    waters: { pond: .85, oxbow: .7, lake: .5, canal: .4, reservoir: .3, river_small: .3, river_big: .15 },
+    months: [.05,.05,.2,.55,.9,1,.95,.9,.7,.35,.1,.05],
+    temp: [8, 16, 26, 30],
+    times: { dawn: .7, day: 1, dusk: .7, night: .05 },
+    depth: { shallow: 1, mid: .3, deep: .05 },
+    baits: { dough: .9, maggot: .8, bread: .7 },
+    tackle: { float: 1, feeder: .1, spinning: 0, livebait: 0 },
+    lat: [44, 60],
+    habitat: ["reeds", "flat"],
+    note: "Крошечная поверхностная рыбка стоячих прудов. Кормовая база хищника и живец для ротана и окуня.",
+  },
+  grasscarp: {
+    name: "Белый амур", latin: "Ctenopharyngodon idella", shape: "carp", hue: "#6f8a3e",
+    waters: { pond: .7, reservoir: .5, lake: .4, canal: .35, river_big: .2, oxbow: .15, river_small: .05 },
+    months: [0,0,.02,.1,.45,.85,1,.95,.6,.2,.02,0],
+    temp: [16, 22, 30, 34],
+    times: { dawn: .9, day: .8, dusk: .7, night: .3 },
+    depth: { shallow: .6, mid: .9, deep: .4 },
+    baits: { corn: .8, pea: .75, dough: .7, bread: .65, boilies: .4 },
+    tackle: { float: .6, feeder: .8, spinning: 0, livebait: 0 },
+    lat: [43, 53],
+    habitat: ["lilies", "reeds", "flat"],
+    note: "Растительноядный вселенец зарыбленных прудов. Кормится водной растительностью в самую жару.",
+  },
+  silvercarp: {
+    name: "Толстолобик", latin: "Hypophthalmichthys molitrix", shape: "bream", hue: "#9aa6ae",
+    waters: { reservoir: .6, pond: .6, river_big: .3, lake: .3, canal: .25, oxbow: .1, river_small: .02 },
+    months: [0,0,0,.05,.35,.8,1,.95,.55,.15,0,0],
+    temp: [18, 24, 31, 35],
+    times: { dawn: .85, day: .9, dusk: .6, night: .2 },
+    depth: { shallow: .7, mid: .8, deep: .3 },
+    baits: { dough: .5, boilies: .25 },
+    tackle: { float: .4, feeder: .5, spinning: 0, livebait: 0 },
+    lat: [43, 52],
+    habitat: ["flat", "dropoff"],
+    note: "Пелагический фильтратор планктона. На обычную насадку берёт редко — ловят специально на технопланктон.",
+  },
 };
+
+/* ---------- Научная экология видов (RAG-факты для аналитика) ----------
+   o2:       устойчивость к дефициту кислорода: low=стоек к замору, high=нужна богатая O₂ вода
+   flow:     отношение к течению: rheo=реофил (любит ток), eury=эвритоп, limno=лимнофил (стоячая)
+   riverLink:нужна связь с речной системой 0..1 (низкое — обычен в изолированных прудах)
+   spawnTemp:[мин,макс] температуры нереста, °C (по ихтиологическим данным)
+   clarity:  прозрачность воды: clear=нужна чистая, any=безразлично, turbid=терпит/любит мутную
+   predator: хищник-ихтиофаг; gregarious: держится стаей; maxLenCm: типичная макс. длина */
+const ECOLOGY = {
+  crucian:   { o2: "low",  flow: "limno", riverLink: .1, spawnTemp: [17, 20], clarity: "turbid", predator: false, gregarious: true,  maxLenCm: 35 },
+  carp:      { o2: "low",  flow: "eury",  riverLink: .2, spawnTemp: [18, 20], clarity: "turbid", predator: false, gregarious: true,  maxLenCm: 100 },
+  roach:     { o2: "med",  flow: "eury",  riverLink: .5, spawnTemp: [8, 14],  clarity: "any",    predator: false, gregarious: true,  maxLenCm: 35 },
+  bream:     { o2: "med",  flow: "eury",  riverLink: .6, spawnTemp: [12, 16], clarity: "any",    predator: false, gregarious: true,  maxLenCm: 50 },
+  perch:     { o2: "high", flow: "eury",  riverLink: .4, spawnTemp: [7, 12],  clarity: "clear",  predator: true,  gregarious: true,  maxLenCm: 40 },
+  pike:      { o2: "high", flow: "limno", riverLink: .4, spawnTemp: [4, 9],   clarity: "any",    predator: true,  gregarious: false, maxLenCm: 120 },
+  zander:    { o2: "high", flow: "eury",  riverLink: .85,spawnTemp: [10, 14], clarity: "clear",  predator: true,  gregarious: true,  maxLenCm: 90 },
+  catfish:   { o2: "med",  flow: "eury",  riverLink: .8, spawnTemp: [18, 22], clarity: "turbid", predator: true,  gregarious: false, maxLenCm: 250 },
+  ide:       { o2: "high", flow: "rheo",  riverLink: .8, spawnTemp: [6, 10],  clarity: "any",    predator: false, gregarious: true,  maxLenCm: 60 },
+  chub:      { o2: "high", flow: "rheo",  riverLink: .9, spawnTemp: [14, 18], clarity: "clear",  predator: false, gregarious: false, maxLenCm: 60 },
+  tench:     { o2: "low",  flow: "limno", riverLink: .15,spawnTemp: [19, 22], clarity: "turbid", predator: false, gregarious: false, maxLenCm: 55 },
+  rudd:      { o2: "low",  flow: "limno", riverLink: .25,spawnTemp: [16, 20], clarity: "any",    predator: false, gregarious: true,  maxLenCm: 35 },
+  silver_bream:{o2:"med",  flow: "eury",  riverLink: .5, spawnTemp: [15, 18], clarity: "any",    predator: false, gregarious: true,  maxLenCm: 35 },
+  burbot:    { o2: "high", flow: "rheo",  riverLink: .85,spawnTemp: [0, 3],   clarity: "clear",  predator: true,  gregarious: false, maxLenCm: 80 },
+  asp:       { o2: "high", flow: "rheo",  riverLink: .9, spawnTemp: [8, 12],  clarity: "any",    predator: true,  gregarious: false, maxLenCm: 80 },
+  rotan:     { o2: "low",  flow: "limno", riverLink: .05,spawnTemp: [15, 20], clarity: "turbid", predator: true,  gregarious: false, maxLenCm: 25 },
+  bleak:     { o2: "med",  flow: "eury",  riverLink: .5, spawnTemp: [15, 18], clarity: "any",    predator: false, gregarious: true,  maxLenCm: 18 },
+  ruffe:     { o2: "high", flow: "eury",  riverLink: .55,spawnTemp: [6, 12],  clarity: "any",    predator: false, gregarious: true,  maxLenCm: 18 },
+  gudgeon:   { o2: "high", flow: "rheo",  riverLink: .7, spawnTemp: [12, 18], clarity: "clear",  predator: false, gregarious: true,  maxLenCm: 18 },
+  verkhovka: { o2: "low",  flow: "limno", riverLink: .1, spawnTemp: [15, 22], clarity: "any",    predator: false, gregarious: true,  maxLenCm: 9 },
+  grasscarp: { o2: "med",  flow: "limno", riverLink: .1, spawnTemp: [20, 26], clarity: "any",    predator: false, gregarious: false, maxLenCm: 120, stocked: true },
+  silvercarp:{ o2: "med",  flow: "limno", riverLink: .1, spawnTemp: [18, 26], clarity: "turbid", predator: false, gregarious: true,  maxLenCm: 100, stocked: true },
+};
+
+/* ---------- Знаниевые карточки (корпус для RAG-аналитика) ---------- */
+const KNOWLEDGE = {
+  crucian: "Карась населяет стоячие и слабопроточные водоёмы, переносит дефицит кислорода и промерзание, выживая там, где гибнет другая рыба. Нерест порционный при 17–20 °C. Кормится у дна и в зарослях; пик клёва — тёплое утро и вечер. В изолированных прудах часто единственный массовый вид.",
+  carp: "Карп (одомашненная форма сазана) теплолюбив, всеяден, кормится со дна. В средней полосе обычно зарыбляется, естественный нерест неустойчив (нужно 18+ °C). Реагирует на падение давления и кислорода. Дикий сазан — рыба больших рек и пойменных озёр.",
+  roach: "Плотва — самый массовый и пластичный карповый вид; есть почти в любом водоёме с растительностью. Ранний нерест при ~10 °C. Кормится в толще и у дна, держится стаями, активна почти круглый год.",
+  bream: "Лещ — стайная донная рыба крупных рек, водохранилищ и озёр. Кормится на бровках и ровных столах, выходя на мелководье к ночи. Чувствителен к прикормке и тишине; ключ — точная глубинная точка.",
+  perch: "Окунь — дневной стайный хищник; молодь ест беспозвоночных, крупный — малька. Нужна сравнительно чистая, богатая кислородом вода. Держится у укрытий, бровок и границ травы, охотится «котлами».",
+  pike: "Щука — засадный хищник стоячих и слабопроточных вод, стоит у травы, коряг и свалов. Нерестится самой первой, сразу после схода льда при 4–9 °C. Пики клёва — весна (преднерест) и осенний жор.",
+  zander: "Судак — сумеречно-ночной хищник, требователен к кислороду и чистоте воды, избегает заиленных прудов. Держится глубоких бровок, кос, коряжника и опор. Нужна связь с речной системой — в изолированных прудах его нет.",
+  catfish: "Сом — крупнейший пресноводный хищник, теплолюбив и активен ночью при 18+ °C. Стоит в русловых ямах и у коряг больших рек и водохранилищ; зимой залегает и не питается.",
+  ide: "Язь — сильная всеядная рыба речных струй, омутов и границ течения; молодь стайная. Весной идёт на разливы. Хорошо отзывается на растительные и животные насадки, осторожен.",
+  chub: "Голавль — рыба чистых малых и средних рек с течением, перекатов и нависающих деревьев. Всеяден: насекомые, малёк, ягоды. Крайне осторожен, требует маскировки и чистой воды.",
+  tench: "Линь — скрытная рыба тёплых заросших стоячих вод, переносит нехватку кислорода. Поздний нерест при 19–22 °C. Кормится в окнах травы на зорях, выдаёт себя цепочками пузырьков.",
+  rudd: "Краснопёрка держится у поверхности среди водной растительности тёплых стоячих и слабопроточных вод. Летом берёт смело весь день; почти не выходит на открытые глубины.",
+  silver_bream: "Густера — стайный донный вид, спутник леща, но мельче и ближе к берегу. Обычна в реках, водохранилищах и озёрах, кормится на бровках и ровном дне.",
+  burbot: "Налим — единственный пресноводный тресковый, любит холод и чистую богатую кислородом воду. Активен и нерестится зимой (0–3 °C, декабрь–февраль), летом впадает в оцепенение. Ночной донный хищник рек и холодных озёр.",
+  asp: "Жерех — дневной пелагический хищник крупных рек, бьёт малька на струе и перекатах. Требует богатой кислородом проточной воды и связи с рекой; в прудах и старицах не живёт.",
+  rotan: "Ротан — дальневосточный вселенец, агрессивный микрохищник заморных прудов и стариц. Крайне неприхотлив к кислороду, способен заселять изолированные лужи и вытеснять местные виды. Берёт жадно почти в любых условиях.",
+  bleak: "Уклейка — мелкая стайная рыба верхних слоёв рек, водохранилищ и озёр. Кормится падающими насекомыми, активна днём в тёплое время. Важнейшая кормовая база хищника и популярный живец.",
+  ruffe: "Ёрш — мелкий донный окунёвый вид глубоких прохладных участков. Холодостоек и активен в сумерках и ночью, в том числе зимой. Хороший индикатор глубоких ям с твёрдым дном.",
+  gudgeon: "Пескарь — мелкая донная рыба чистых песчано-галечных рек и ручьёв с течением; индикатор чистой, богатой кислородом воды. Активен днём, стайный, классический живец для окуня и щуки.",
+  verkhovka: "Верховка — крошечная стайная рыбка поверхностного слоя стоячих прудов и стариц. Неприхотлива, быстро заселяет небольшие изолированные водоёмы, служит кормом хищнику и наживкой.",
+  grasscarp: "Белый амур — растительноядный дальневосточный вселенец, в средней полосе зарыбляется для борьбы с зарослями. Активно кормится водной растительностью при 20+ °C; естественно почти не размножается в умеренных широтах.",
+  silvercarp: "Толстолобик — пелагический фильтратор фитопланктона, зарыбляется в прудах и водохранилищах. На обычные насадки берёт редко — ловят целенаправленно на технопланктон в толще воды; требует тёплой воды.",
+};
+
+/* ---------- Источники базы знаний ---------- */
+const SOURCES = [
+  "Атлас пресноводных рыб России (под ред. Ю. С. Решетникова, 2002)",
+  "Сабанеев Л. П. «Жизнь и ловля пресноводных рыб»",
+  "FishBase (froese & pauly, fishbase.org) — ареалы, температуры нереста, размеры",
+  "OpenStreetMap / Overpass API — реальная геометрия и тип водоёма",
+];
 
 /* ---------- Подписи направлений ветра ---------- */
 const WIND_DIRS = ["С","ССВ","СВ","ВСВ","В","ВЮВ","ЮВ","ЮЮВ","Ю","ЮЮЗ","ЮЗ","ЗЮЗ","З","ЗСЗ","СЗ","ССЗ"];
@@ -1139,9 +1334,7 @@ const PERIOD_NAMES = { dawn: "утренняя зорька", day: "день", d
    API бесплатный, без ключей: https://open-meteo.com/
    Формат запроса и модель воды описаны в ai/docs/04-api.md
    и ai/docs/05-algorithms.md
-   ============================================================ */
-
-
+   ============================================================ */
 const HPA_TO_MM = 0.750062;
 const API = "https://api.open-meteo.com/v1/forecast";
 const NOMINATIM = "https://nominatim.openstreetmap.org/reverse";
@@ -1159,7 +1352,7 @@ async function getJSON(url, ms = 14000) {
 
 /* ---------- Основной запрос погоды ----------
    past_days=7 нужен модели температуры воды (тепловая инерция). */
-export async function fetchWeather(lat, lon) {
+async function fetchWeather(lat, lon) {
   const params = new URLSearchParams({
     latitude: lat.toFixed(4),
     longitude: lon.toFixed(4),
@@ -1220,7 +1413,7 @@ export async function fetchWeather(lat, lon) {
 }
 
 /* ---------- Обратное геокодирование (название места) ---------- */
-export async function reverseGeocode(lat, lon) {
+async function reverseGeocode(lat, lon) {
   try {
     const url = `${NOMINATIM}?lat=${lat}&lon=${lon}&format=jsonv2&zoom=12&accept-language=ru`;
     const d = await getJSON(url, 8000);
@@ -1341,11 +1534,7 @@ function manualWeather({ air, water, pressure, wind, windDir, clouds }, lat, lon
    КлёвГид — движок рекомендаций.
    Скоринг клёва, ранжирование насадок, генерация тактики.
    Формулы и веса описаны в ai/docs/05-algorithms.md
-   ============================================================ */
-
-
-
-
+   ============================================================ */
 /* ---------- Вспомогательные ---------- */
 
 /* Трапециевидная функция: 0 за пределами [a,d], 1 внутри [b,c] */
@@ -1498,8 +1687,12 @@ function computeBite(state) {
   let total = F.reduce((s, f) => s + f.score * f.weight, 0) /
               F.reduce((s, f) => s + f.weight, 0);
 
-  /* Жёсткий потолок, если вида в водоёме практически нет */
-  const presence = wAff * pres;
+  /* Жёсткий потолок, если вида в водоёме практически нет.
+     Если AI-аналитик оценил правдоподобие вида на конкретном водоёме
+     (по реальному рельефу OSM), используем его как более точную оценку
+     присутствия — иначе падаем на базовое waters×latPresence. */
+  const aiConf = state.aiAnalysis?.species?.find(s => s.id === fishId)?.confidence;
+  const presence = aiConf != null ? aiConf : wAff * pres;
   if (presence < 0.15) total = Math.min(total, 0.14);
   else if (presence < 0.35) total = Math.min(total, 0.45);
 
@@ -1736,6 +1929,604 @@ function buildSummary(state, bite) {
     bestHour: top ? `${String(top.hour).padStart(2, "0")}:00` : "—",
     pct: bite.pct,
   };
+}
+
+/* ===== osm.js ===== */
+/* ============================================================
+   КлёвГид — работа с OpenStreetMap через Overpass API.
+   • detectWater(lat,lon)      — точка на водоёме? какой тип?
+   • fetchSurroundings(...)     — реальный рельеф в радиусе R (вода,
+                                  камыш, притоки, мосты, острова)
+   • profileWater(...)          — научный профиль водоёма для аналитика
+   • realisticCastDistance(...) — реалистичная дистанция заброса
+   Чистые парсеры/геометрия экспортируются и покрыты тестами.
+   Документация: ai/docs/10-osm-terrain.md
+   ============================================================ */
+
+const ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+];
+
+/* ---------- Низкоуровневый запрос с перебором зеркал ---------- */
+async function overpass(query, ms = 25000) {
+  let lastErr;
+  for (const url of ENDPOINTS) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    try {
+      const res = await fetch(url, { method: "POST", body: "data=" + encodeURIComponent(query), signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) { lastErr = new Error("HTTP " + res.status); continue; }
+      return await res.json();
+    } catch (e) { clearTimeout(timer); lastErr = e; }
+  }
+  throw lastErr || new Error("Overpass недоступен");
+}
+
+/* ============================================================
+   ПРОЕКЦИЯ lat/lon → локальные метры (равнопромежуточная).
+   y направлен вниз (север — вверх на экране).
+   ============================================================ */
+function projector(lat0, lon0) {
+  const mPerLat = 111320;
+  const mPerLon = 111320 * Math.cos(lat0 * Math.PI / 180);
+  return {
+    mPerLat, mPerLon,
+    toXY: (lat, lon) => [(lon - lon0) * mPerLon, (lat0 - lat) * mPerLat],
+  };
+}
+
+/* Площадь кольца (м²) по спроецированным точкам — формула шнурков */
+function polygonAreaM2(geom, proj) {
+  if (!geom || geom.length < 3) return 0;
+  let s = 0;
+  for (let i = 0; i < geom.length; i++) {
+    const [x1, y1] = proj.toXY(geom[i].lat, geom[i].lon);
+    const j = (i + 1) % geom.length;
+    const [x2, y2] = proj.toXY(geom[j].lat, geom[j].lon);
+    s += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(s) / 2;
+}
+
+/* Минимальная дистанция от точки до полилинии/кольца, м */
+function distToGeomM(lat, lon, geom, proj) {
+  if (!geom || !geom.length) return Infinity;
+  const [px, py] = proj.toXY(lat, lon);
+  let best = Infinity;
+  for (let i = 0; i < geom.length - 1; i++) {
+    const [ax, ay] = proj.toXY(geom[i].lat, geom[i].lon);
+    const [bx, by] = proj.toXY(geom[i + 1].lat, geom[i + 1].lon);
+    best = Math.min(best, segDist(px, py, ax, ay, bx, by));
+  }
+  if (geom.length === 1) {
+    const [ax, ay] = proj.toXY(geom[0].lat, geom[0].lon);
+    best = Math.hypot(px - ax, py - ay);
+  }
+  return best;
+}
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy || 1;
+  let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+/* Точка внутри кольца (ray casting) по спроецированным координатам */
+function pointInRing(lat, lon, geom, proj) {
+  if (!geom || geom.length < 3) return false;
+  const [px, py] = proj.toXY(lat, lon);
+  let inside = false;
+  for (let i = 0, j = geom.length - 1; i < geom.length; j = i++) {
+    const [xi, yi] = proj.toXY(geom[i].lat, geom[i].lon);
+    const [xj, yj] = proj.toXY(geom[j].lat, geom[j].lon);
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / ((yj - yi) || 1e-9) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/* ============================================================
+   КЛАССИФИКАЦИЯ типа водоёма из тегов OSM → ключ WATERS
+   ============================================================ */
+function classifyWater(tags = {}, areaHa = 0) {
+  const name = (tags.name || "").toLowerCase();
+  const ww = tags.waterway;
+  const w = tags.water;
+
+  if (/стариц|ерик|курья/.test(name)) return "oxbow";
+  if (/водохранилищ|вдхр|вусл/.test(name)) return "reservoir";
+  if (/\bканал\b/.test(name)) return "canal";
+
+  if (ww === "river") return areaHa > 8 ? "river_big" : "river_small";
+  if (ww === "stream") return "river_small";
+  if (ww === "canal" || ww === "ditch" || ww === "drain") return "canal";
+
+  if (w === "pond") return "pond";
+  if (w === "lake") return areaHa > 0 && areaHa < 1.5 ? "pond" : "lake";
+  if (w === "reservoir" || w === "basin" || tags.landuse === "reservoir") return "reservoir";
+  if (w === "oxbow") return "oxbow";
+  if (w === "canal") return "canal";
+  if (w === "river") return areaHa > 8 ? "river_big" : "river_small";
+  if (w === "lagoon" || w === "lake;pond") return "lake";
+
+  if (tags.natural === "water" || w) {
+    if (areaHa > 0 && areaHa < 1.2) return "pond";
+    if (areaHa < 60) return "lake";
+    return "reservoir";
+  }
+  return "lake";
+}
+
+/* ---------- Запрос: точка на воде? ---------- */
+async function detectWater(lat, lon) {
+  const q =
+`[out:json][timeout:25];
+is_in(${lat},${lon})->.a;
+( area.a["natural"="water"]; area.a["water"]; area.a["landuse"="reservoir"]; );
+out tags;
+( way(around:30,${lat},${lon})["waterway"~"^(river|stream|canal|ditch|drain)$"]; );
+out tags geom;`;
+  const data = await overpass(q);
+  return parseDetect(data, lat, lon);
+}
+
+/* Чистый парсер ответа detectWater (тестируемый) */
+function parseDetect(data, lat, lon) {
+  const els = data?.elements || [];
+  const areas = els.filter(e => e.type === "area" && e.tags &&
+    (e.tags.natural === "water" || e.tags.water || e.tags.landuse === "reservoir"));
+  const lines = els.filter(e => e.type === "way" && e.tags && e.tags.waterway);
+
+  if (areas.length) {
+    const a = areas[0];
+    return { isWater: true, kind: "area", tags: a.tags, name: a.tags.name || null,
+      type: classifyWater(a.tags), source: "osm-area" };
+  }
+  if (lines.length) {
+    const proj = projector(lat, lon);
+    let best = lines[0], bestD = Infinity;
+    for (const l of lines) {
+      const d = l.geometry ? distToGeomM(lat, lon, l.geometry, proj) : 0;
+      if (d < bestD) { bestD = d; best = l; }
+    }
+    return { isWater: true, kind: "line", tags: best.tags, name: best.tags.name || null,
+      type: classifyWater(best.tags), distM: isFinite(bestD) ? Math.round(bestD) : null, source: "osm-line" };
+  }
+  return { isWater: false };
+}
+
+/* ---------- Запрос: рельеф в радиусе ---------- */
+async function fetchSurroundings(lat, lon, radius = 300) {
+  const q =
+`[out:json][timeout:30];
+( way(around:${radius},${lat},${lon})["natural"="water"];
+  relation(around:${radius},${lat},${lon})["natural"="water"];
+  way(around:${radius},${lat},${lon})["water"];
+  way(around:${radius},${lat},${lon})["waterway"~"^(river|stream|canal|ditch|drain)$"];
+  way(around:${radius},${lat},${lon})["natural"="wetland"];
+  way(around:${radius},${lat},${lon})["natural"="reedbed"];
+  way(around:${radius},${lat},${lon})["man_made"="pier"];
+  way(around:${radius},${lat},${lon})["bridge"];
+  way(around:${radius},${lat},${lon})["natural"="beach"]; );
+out tags geom;`;
+  const data = await overpass(q);
+  return parseSurroundings(data, lat, lon, radius);
+}
+
+/* Чистый парсер рельефа (тестируемый) */
+function parseSurroundings(data, lat, lon, radius = 300) {
+  const proj = projector(lat, lon);
+  const els = (data?.elements || []).filter(e => e.geometry && e.geometry.length);
+  const waters = [], waterways = [], reeds = [], beaches = [], bridges = [];
+
+  for (const e of els) {
+    const t = e.tags || {};
+    const closed = e.geometry.length > 2 &&
+      e.geometry[0].lat === e.geometry.at(-1).lat && e.geometry[0].lon === e.geometry.at(-1).lon;
+    const item = { id: e.id, tags: t, geom: e.geometry, closed };
+    if (t.natural === "water" || t.water) {
+      item.areaHa = polygonAreaM2(e.geometry, proj) / 10000;
+      waters.push(item);
+    } else if (t.waterway) {
+      waterways.push(item);
+    } else if (t.natural === "wetland" || t.natural === "reedbed") {
+      reeds.push(item);
+    } else if (t.natural === "beach") {
+      beaches.push(item);
+    } else if (t.bridge || t.man_made === "pier") {
+      bridges.push(item);
+    }
+  }
+  let main = null;
+  for (const w of waters) {
+    if (pointInRing(lat, lon, w.geom, proj)) { main = w; break; }
+  }
+  if (!main && waters.length) main = waters.slice().sort((a, b) => (b.areaHa || 0) - (a.areaHa || 0))[0];
+
+  return { point: { lat, lon }, radius, proj, waters, waterways, reeds, beaches, bridges, main };
+}
+
+/* ============================================================
+   ПРОФИЛЬ ВОДОЁМА — научная сводка для аналитика
+   ============================================================ */
+function profileWater(detect, surr, lat) {
+  const proj = surr?.proj || projector(lat, surr?.point?.lon ?? 0);
+  const main = surr?.main;
+  const tags = main?.tags || detect?.tags || {};
+  const name = main?.tags?.name || detect?.name || null;
+  const areaHa = main?.areaHa ?? null;
+
+  const type = detect?.type || classifyWater(tags, areaHa || 0);
+  const linear = detect?.kind === "line" || ["river_small", "river_big", "canal"].includes(type);
+
+  let sizeClass = "unknown";
+  let widthM;
+  if (linear) {
+    const width = parseFloat(tags.width) || (type === "river_big" ? 60 : type === "canal" ? 15 : 8);
+    sizeClass = width > 80 ? "huge" : width > 30 ? "large" : width > 10 ? "medium" : "small";
+    widthM = width;
+  } else if (areaHa != null) {
+    sizeClass = areaHa < 0.5 ? "tiny" : areaHa < 5 ? "small" : areaHa < 50 ? "medium" : areaHa < 500 ? "large" : "huge";
+  }
+
+  const rivers = (surr?.waterways || []).filter(w => /^(river|stream|canal)$/.test(w.tags.waterway));
+  let connectivity = 0, inflows = [];
+  if (linear) {
+    connectivity = 1;
+  } else if (main) {
+    for (const r of rivers) {
+      const near = minDistGeomToGeom(r.geom, main.geom, proj) < 25;
+      if (near) { connectivity = 1; if (r.tags.name) inflows.push(r.tags.name); }
+    }
+    if (!connectivity && rivers.length) connectivity = 0.4;
+  }
+
+  const reeds = (surr?.reeds || []).length > 0;
+  const beach = (surr?.beaches || []).length > 0;
+  const bridge = (surr?.bridges || []).length > 0;
+  const islands = (surr?.waters || []).filter(w => w !== main && pointInsideAny(w, main, proj)).length;
+
+  return {
+    type, name, linear, areaHa, widthM: typeof widthM === "number" ? widthM : null,
+    sizeClass, connectivity, inflows: [...new Set(inflows)].slice(0, 4),
+    reeds, beach, bridge, islands,
+    shorelineComplex: main ? shorelineComplexity(main.geom, proj) : null,
+    dataQuality: main || detect?.tags ? "osm" : "inferred",
+  };
+}
+
+function minDistGeomToGeom(g1, g2, proj) {
+  let best = Infinity;
+  for (const p of g1) best = Math.min(best, distToGeomM(p.lat, p.lon, g2, proj));
+  return best;
+}
+function pointInsideAny(small, big, proj) {
+  if (!big || !small?.geom?.length) return false;
+  const c = small.geom[0];
+  return pointInRing(c.lat, c.lon, big.geom, proj);
+}
+function shorelineComplexity(geom, proj) {
+  if (!geom || geom.length < 4) return null;
+  let per = 0;
+  for (let i = 0; i < geom.length - 1; i++) {
+    const [x1, y1] = proj.toXY(geom[i].lat, geom[i].lon);
+    const [x2, y2] = proj.toXY(geom[i + 1].lat, geom[i + 1].lon);
+    per += Math.hypot(x2 - x1, y2 - y1);
+  }
+  const area = polygonAreaM2(geom, proj) || 1;
+  const ratio = (per * per) / (4 * Math.PI * area);
+  return Math.round(ratio * 10) / 10;
+}
+
+/* ============================================================
+   РЕАЛИСТИЧНАЯ ДИСТАНЦИЯ ЗАБРОСА
+   ============================================================ */
+const COMFORT = {
+  float:    { min: 5,  rec: 12, max: 22 },
+  feeder:   { min: 25, rec: 40, max: 60 },
+  spinning: { min: 12, rec: 30, max: 50 },
+  livebait: { min: 5,  rec: 12, max: 20 },
+};
+
+function realisticCastDistance(tackle, profile) {
+  const c = COMFORT[tackle] || COMFORT.feeder;
+  let reach = Infinity, reason = "";
+  if (profile?.linear && profile.widthM) {
+    reach = profile.widthM;
+    reason = `ширина русла ≈ ${Math.round(profile.widthM)} м`;
+  } else if (profile?.areaHa) {
+    const R = Math.sqrt((profile.areaHa * 10000) / Math.PI);
+    reach = R * 1.5;
+    reason = `водоём ≈ ${fmtHa(profile.areaHa)}`;
+  }
+  let min = c.min, rec = c.rec, max = c.max, clamped = false;
+  if (isFinite(reach)) {
+    const usableMax = Math.max(6, Math.round(reach * 0.9));
+    if (usableMax < c.max) {
+      clamped = true;
+      max = usableMax;
+      min = Math.min(c.min, Math.max(5, Math.round(reach * 0.3)));
+      rec = Math.max(min, Math.min(Math.round(reach * 0.55), max));
+    }
+  }
+  const label = `${min}–${max} м` + (rec ? ` (оптимум ~${rec} м)` : "");
+  let note;
+  if (clamped && (profile?.sizeClass === "tiny" || profile?.sizeClass === "small")) {
+    note = `Водоём небольшой (${reason}) — дальний заброс не нужен, рыба часто под самым берегом.`;
+  } else if (profile?.linear) {
+    note = `Малая/средняя река (${reason}): ловят накоротке, важнее точка, чем дальность.`;
+  } else {
+    note = `Комфортная дистанция для снасти; на большой воде дальше уже непродуктивно.`;
+  }
+  return { minM: min, recM: rec, maxM: max, label, note, reachM: isFinite(reach) ? Math.round(reach) : null };
+}
+
+function fmtHa(ha) {
+  if (ha == null) return "—";
+  if (ha < 1) return Math.round(ha * 10000) + " м²";
+  if (ha < 100) return (Math.round(ha * 10) / 10) + " га";
+  return Math.round(ha / 100 * 10) / 10 + " км²";
+}
+
+const SIZE_NAMES = {
+  tiny: "очень малый", small: "малый", medium: "средний",
+  large: "крупный", huge: "очень крупный", unknown: "размер неизвестен",
+};
+
+/* ===== ai-analyst.js ===== */
+/* ============================================================
+   КлёвГид — AI-аналитик водоёма (RAG-пайплайн).
+
+   По выбранной на карте точке собирает РЕАЛЬНЫЕ факты о водоёме
+   (тип, размер, связь с рекой, камыш — из OpenStreetMap) и
+   объединяет с научной базой по экологии рыб (fishdb), чтобы
+   обоснованно предположить, какие виды здесь реально водятся и
+   с какой уверенностью. Мало данных — честно переходим к оценке
+   «по аналогии» (тип, ареал, размер).
+
+   Провайдеры: local (работает сейчас) и claude (заглушка к
+   /api/ai/analyze). analyzeWater() при сбое Claude откатывается на
+   local — сайт всегда выдаёт результат.
+
+   Документация: ai/docs/09-ai-analyst.md
+   ============================================================ */
+
+const AI_CONFIG = {
+  provider: "local",                 // позже: "claude"
+  endpoint: "/api/ai/analyze",       // бэкенд-прокси к Claude CLI
+  model: "claude-fable-5",
+};
+
+const firstSentence = (s) => (s || "").split(/(?<=[.!?])\s/)[0];
+
+/* RAG-ШАГ 1 — RETRIEVAL: факты о точке */
+function assembleContext({ profile, weather, month, waterTemp }) {
+  const type = profile?.type || "lake";
+  return {
+    type,
+    typeName: WATERS[type]?.name || "водоём",
+    name: profile?.name || null,
+    linear: !!profile?.linear,
+    areaHa: profile?.areaHa ?? null,
+    widthM: profile?.widthM ?? null,
+    sizeClass: profile?.sizeClass || "unknown",
+    connectivity: profile?.connectivity ?? 0,
+    inflows: profile?.inflows || [],
+    reeds: !!profile?.reeds,
+    beach: !!profile?.beach,
+    bridge: !!profile?.bridge,
+    islands: profile?.islands || 0,
+    shorelineComplex: profile?.shorelineComplex ?? null,
+    dataQuality: profile?.dataQuality || "inferred",
+    lat: profile?.lat ?? weather?.lat ?? 55,
+    month: month ?? new Date().getMonth(),
+    waterTemp: waterTemp ?? null,
+  };
+}
+
+/* RAG-ШАГ 2 — REASONING: правдоподобие вида на этом водоёме */
+function plausibility(id, P, lat) {
+  const f = FISHES[id], e = ECOLOGY[id];
+  if (!f || !e) return null;
+  const base = (f.waters[P.type] ?? 0) * latPresence(f, lat);
+  if (base <= 0.02) return null;
+
+  let c = base;
+  const ev = [], notes = [];
+  const big = e.maxLenCm >= 70 || e.predator;
+
+  if (e.riverLink >= 0.6) {
+    if (P.connectivity >= 0.6) { c *= 1.18; ev.push("есть связь с рекой — речной вид проходит сюда"); }
+    else if (P.connectivity <= 0.3) { c *= 0.16; notes.push("нужен выход в реку, а водоём изолирован"); }
+    else c *= 0.55;
+  } else if (e.riverLink <= 0.2 && P.connectivity <= 0.3) {
+    c *= 1.08;
+  }
+
+  if (P.sizeClass === "tiny") {
+    if (big) c *= 0.3;
+    if (e.maxLenCm <= 30 && e.riverLink < 0.3) c *= 1.12;
+  } else if (P.sizeClass === "small" && e.maxLenCm >= 90) {
+    c *= 0.6;
+  } else if ((P.sizeClass === "large" || P.sizeClass === "huge") && e.maxLenCm <= 18 && !e.gregarious) {
+    c *= 0.9;
+  }
+
+  if (P.sizeClass === "tiny" && P.connectivity < 0.3) {
+    if (e.o2 === "low") { c *= 1.2; }
+    if (e.o2 === "high") { c *= 0.45; notes.push("требователен к кислороду — в малом пруду маловероятен"); }
+  }
+
+  if (P.reeds && f.habitat.includes("reeds")) { c *= 1.1; ev.push("камыш по берегу — укрытие и нерестилище"); }
+
+  if (e.stocked) {
+    if (["pond", "reservoir", "lake"].includes(P.type)) notes.push("встречается только при зарыблении");
+    else c *= 0.15;
+  }
+
+  c = Math.max(0, Math.min(1, c));
+
+  let basis, basisLabel;
+  if (P.dataQuality === "osm" && base >= 0.55 && c >= 0.45) { basis = "typical"; basisLabel = "типичный вид"; }
+  else if (c >= 0.3) { basis = "likely"; basisLabel = "вероятен"; }
+  else { basis = "possible"; basisLabel = "возможен"; }
+
+  return { id, confidence: c, base, basis, basisLabel, evidence: ev, notes };
+}
+
+function rationaleFor(id, P, p) {
+  const f = FISHES[id], e = ECOLOGY[id];
+  const bits = [];
+  if (p.basis === "typical") bits.push(`Типичен для водоёма «${P.typeName.toLowerCase()}» в вашем регионе`);
+  else if (p.basis === "likely") bits.push(`Вероятен для такого водоёма и широты`);
+  else bits.push(`Возможен, но не доминирует`);
+
+  if (e.riverLink >= 0.6 && P.connectivity >= 0.6) bits.push("водоём связан с рекой");
+  if (e.riverLink >= 0.6 && P.connectivity <= 0.3) bits.push("обычно требует выхода в реку");
+  if (P.reeds && f.habitat.includes("reeds")) bits.push("есть подходящие заросли");
+  if (P.sizeClass === "tiny" && e.o2 === "low") bits.push("переносит бедную кислородом воду малого пруда");
+
+  return bits.join(", ") + ". " + firstSentence(KNOWLEDGE[id] || "");
+}
+
+function waterEvidence(P) {
+  const ev = [];
+  ev.push(`Тип: ${P.typeName.toLowerCase()}${P.dataQuality === "osm" ? " (по данным OSM)" : " (оценка)"}`);
+  if (P.name) ev.push(`Название: ${P.name}`);
+  if (P.areaHa != null) ev.push(`Площадь: ${fmtHa(P.areaHa)} (${SIZE_NAMES[P.sizeClass]})`);
+  else if (P.widthM) ev.push(`Ширина русла: ≈ ${Math.round(P.widthM)} м`);
+  if (P.connectivity >= 0.6) ev.push(`Связь с рекой: есть${P.inflows.length ? " (" + P.inflows.join(", ") + ")" : ""}`);
+  else if (P.connectivity <= 0.3 && !P.linear) ev.push("Связь с рекой: не обнаружена (изолированный водоём)");
+  if (P.reeds) ev.push("Камыш / тростник по берегу");
+  if (P.bridge) ev.push("Мост / гидросооружение рядом");
+  if (P.islands) ev.push(`Острова: ${P.islands}`);
+  return ev;
+}
+
+/* ЛОКАЛЬНЫЙ ПРОВАЙДЕР — экспертный синтез */
+function analyzeLocal(input) {
+  const P = assembleContext(input);
+  const lat = P.lat;
+
+  const species = Object.keys(FISHES)
+    .map(id => plausibility(id, P, lat))
+    .filter(p => p && p.confidence >= 0.08)
+    .sort((a, b) => b.confidence - a.confidence)
+    .map(p => ({
+      id: p.id,
+      name: FISHES[p.id].name,
+      confidence: Math.round(p.confidence * 100) / 100,
+      basis: p.basis,
+      basisLabel: p.basisLabel,
+      rationale: rationaleFor(p.id, P, p),
+      evidence: p.evidence,
+    }));
+
+  const top = species.slice(0, 4).map(s => s.name).join(", ");
+  const summary = buildWaterSummary(P, species);
+  const notes = buildNotes(P, species);
+
+  return {
+    provider: "local",
+    dataQuality: P.dataQuality,
+    waterProfile: {
+      type: P.type, typeName: P.typeName, name: P.name,
+      sizeLabel: SIZE_NAMES[P.sizeClass], areaHa: P.areaHa, widthM: P.widthM,
+      connectivity: P.connectivity, reeds: P.reeds, bridge: P.bridge, islands: P.islands,
+    },
+    waterEvidence: waterEvidence(P),
+    summary, top, species, notes,
+    sources: SOURCES,
+  };
+}
+
+function buildWaterSummary(P, species) {
+  const parts = [];
+  const sizeTxt = P.areaHa != null ? `${SIZE_NAMES[P.sizeClass]} (${fmtHa(P.areaHa)})`
+    : P.widthM ? `${SIZE_NAMES[P.sizeClass]}, ширина ≈ ${Math.round(P.widthM)} м` : SIZE_NAMES[P.sizeClass];
+  parts.push(`${P.name ? "«" + P.name + "» — " : ""}${P.typeName.toLowerCase()}, ${sizeTxt}.`);
+
+  if (P.linear) parts.push("Проточная вода с течением — преобладают речные виды.");
+  else if (P.connectivity >= 0.6) parts.push(`Водоём соединён с рекой${P.inflows.length ? " (" + P.inflows.join(", ") + ")" : ""} — сюда могут заходить речные рыбы.`);
+  else if (P.connectivity <= 0.3) parts.push("Связь с рекой не обнаружена: это скорее изолированный водоём, где доминируют озёрно-прудовые виды, стойкие к замору.");
+
+  if (P.reeds) parts.push("По берегу есть камыш/тростник — укрытия, нерестилища и кормовая зона.");
+  if (P.bridge) parts.push("Рядом мост/гидросооружение — локальные ямы и затишья.");
+
+  if (species.length) parts.push(`Наиболее вероятны: ${species.slice(0, 4).map(s => s.name.toLowerCase()).join(", ")}.`);
+  if (P.dataQuality !== "osm") parts.push("Точных данных о видовом составе нет — оценка построена по типу водоёма, ареалу и размеру (по аналогии).");
+  return parts.join(" ");
+}
+
+function buildNotes(P, species) {
+  const notes = [];
+  const stockedShown = species.filter(s => ECOLOGY[s.id].stocked);
+  if (stockedShown.length) notes.push(`${stockedShown.map(s => s.name.toLowerCase()).join(", ")} — встречаются только если водоём зарыбляют.`);
+  if (P.dataQuality !== "osm") notes.push("Видовой состав предполагается по экологии и ареалу, а не по фактическим данным водоёма.");
+  if (P.connectivity <= 0.3 && !P.linear) notes.push("В изолированных прудах нет судака, жереха, сома и другой строго речной рыбы.");
+  notes.push("Это вероятностная оценка, а не гарантия: реальный состав уточняется только на воде.");
+  return notes;
+}
+
+/* ПРОВАЙДЕР CLAUDE — RAG-промпт + вызов бэкенда (ЗАГЛУШКА) */
+class AINotConfigured extends Error {}
+
+function buildClaudePrompt(input) {
+  const P = assembleContext(input);
+  const candidates = Object.keys(FISHES)
+    .map(id => plausibility(id, P, P.lat))
+    .filter(p => p && p.confidence >= 0.05)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 12);
+
+  const facts = waterEvidence(P).map(e => "- " + e).join("\n");
+  const corpus = candidates.map(p =>
+    `### ${FISHES[p.id].name} (${FISHES[p.id].latin})\n${KNOWLEDGE[p.id]}`).join("\n\n");
+
+  return `Ты ихтиолог-аналитик рыболовного сервиса. По фактам о водоёме и справке об экологии видов
+определи, какие рыбы РЕАЛЬНО могут водиться в этой точке, и оцени уверенность (0–100%).
+Опирайся только на приведённые факты; если данных мало — рассуждай по типу водоёма, ареалу,
+размеру, связи с рекой и кислородному режиму. Для каждого вида дай краткое обоснование и
+эвиденс. Верни строгий JSON: {summary, species:[{name, confidence, rationale, evidence[]}], notes[]}.
+
+## Факты о водоёме (точка ${input.profile?.name || ""} ${P.lat.toFixed(3)})
+${facts}
+Сезон: месяц ${P.month + 1}${P.waterTemp != null ? ", температура воды ≈ " + P.waterTemp + " °C" : ""}.
+
+## Справка по экологии видов-кандидатов
+${corpus}`;
+}
+
+async function analyzeClaude(input, ms = 30000) {
+  if (AI_CONFIG.provider !== "claude") throw new AINotConfigured("Claude-провайдер выключен (заглушка)");
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(AI_CONFIG.endpoint, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: AI_CONFIG.model, prompt: buildClaudePrompt(input), context: assembleContext(input) }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new AINotConfigured("Бэкенд AI вернул " + res.status);
+    const data = await res.json();
+    return { provider: "claude", ...data };
+  } finally { clearTimeout(timer); }
+}
+
+/* ПУБЛИЧНАЯ ТОЧКА ВХОДА */
+async function analyzeWater(input) {
+  if (AI_CONFIG.provider === "claude") {
+    try { return await analyzeClaude(input); }
+    catch (e) {
+      const local = analyzeLocal(input);
+      local.notes = ["AI-бэкенд недоступен — показан локальный экспертный разбор.", ...local.notes];
+      return local;
+    }
+  }
+  return analyzeLocal(input);
 }
 
 /* ===== charts.js ===== */
@@ -1985,9 +2776,7 @@ function waterIconSVG(key) {
    Камыш, кувшинки, коряги, бровки, течение, рыболов и точка
    заброса ✕ с пульсацией. Подбор схем — по типу водоёма,
    повадкам рыбы и отмеченным ориентирам.
-   ============================================================ */
-
-
+   ============================================================ */
 /* ---------- Палитра воды и берега ---------- */
 const C = {
   shallow: "#a9cfdd", mid: "#7db4c9", deep: "#4a90ad", deepest: "#2e6f8c",
@@ -2372,8 +3161,8 @@ const TEMPLATES = {
   },
 };
 
-/* ---------- Дистанция заброса по снасти ---------- */
-function castDist(tackle, water) {
+/* ---------- Дистанция заброса по снасти (фолбэк-строка) ---------- */
+function castDistFallback(tackle, water) {
   const far = water === "river_big" || water === "reservoir" || water === "canal";
   switch (tackle) {
     case "feeder": return far ? "40–60 м" : "25–40 м";
@@ -2383,7 +3172,98 @@ function castDist(tackle, water) {
   }
 }
 
-/* ---------- Подбор 3 схем под условия ---------- */
+/* ============================================================
+   РЕАЛЬНЫЙ РЕЛЬЕФ ТОЧКИ (вид сверху, радиус из OSM)
+   ============================================================ */
+function realTerrainSVG(surr, castInfo) {
+  if (!surr || (!surr.main && !(surr.waterways && surr.waterways.length))) return "";
+  const S = 420, R = surr.radius || 300, k = S / (2 * R), C = S / 2;
+  const proj = surr.proj;
+  const toPx = (m) => [C + m[0] * k, C + m[1] * k];
+  const geomM = (geom) => geom.map(g => proj.toXY(g.lat, g.lon));
+  const pathOf = (geom, close) => {
+    let pts = geomM(geom);
+    if (pts.length > 220) pts = pts.filter((_, i) => i % Math.ceil(pts.length / 220) === 0);
+    return pts.map((m, i) => (i ? "L" : "M") + toPx(m).map(v => v.toFixed(1)).join(",")).join(" ") + (close ? " Z" : "");
+  };
+
+  let body = `<rect width="${S}" height="${S}" fill="#cdd8c2"/>`;
+
+  for (const r of surr.reeds) body += `<path d="${pathOf(r.geom, true)}" fill="#9fb06a" opacity=".55"/>`;
+  for (const b of surr.beaches) body += `<path d="${pathOf(b.geom, true)}" fill="${C_.sand}" opacity=".8"/>`;
+
+  for (const w of surr.waters) {
+    const main = w === surr.main;
+    body += `<path d="${pathOf(w.geom, true)}" fill="${main ? "#73aec6" : "#9cc3d4"}" stroke="#3f7e98" stroke-width="1.2" opacity="${main ? 1 : .9}"/>`;
+  }
+  for (const ww of surr.waterways) {
+    body += `<path d="${pathOf(ww.geom, false)}" fill="none" stroke="#5aa0bd" stroke-width="3.2" stroke-linecap="round"/>`;
+    body += flowArrowsAlong(geomM(ww.geom), toPx);
+    if (ww.tags?.name) {
+      const mid = toPx(geomM(ww.geom)[Math.floor(ww.geom.length / 2)]);
+      body += `<text x="${mid[0] + 4}" y="${mid[1] - 4}" font-size="9" fill="#2c6175" font-style="italic" font-family="Lora,serif">${esc(ww.tags.name)}</text>`;
+    }
+  }
+  for (const br of surr.bridges) body += `<path d="${pathOf(br.geom, false)}" fill="none" stroke="#b3a98f" stroke-width="5" stroke-linecap="round"/>`;
+
+  if (surr.main) {
+    const pts = geomM(surr.main.geom);
+    let bestM = null, bd = Infinity;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const cp = closestOnSeg([0, 0], pts[i], pts[i + 1]);
+      const d = Math.hypot(cp[0], cp[1]);
+      if (d < bd) { bd = d; bestM = cp; }
+    }
+    if (bestM && bd > 0.5) {
+      const rec = (castInfo?.recM) || 20;
+      const dCast = Math.min(rec, bd * 0.9);
+      const u = [bestM[0] / bd, bestM[1] / bd];
+      const anglerM = [bestM[0] + u[0] * 7, bestM[1] + u[1] * 7];
+      const castM = [bestM[0] - u[0] * dCast, bestM[1] - u[1] * dCast];
+      const aPx = toPx(anglerM), cPx = toPx(castM), sPx = toPx(bestM);
+      body += `<path d="M${aPx[0].toFixed(1)},${aPx[1].toFixed(1)} Q${sPx[0].toFixed(1)},${(sPx[1] - 14).toFixed(1)} ${cPx[0].toFixed(1)},${cPx[1].toFixed(1)}" fill="none" stroke="rgba(232,85,61,.6)" stroke-width="1.8" stroke-dasharray="5 5"/>`;
+      body += anglerPin(aPx[0], aPx[1]);
+      body += castPoint(cPx[0], cPx[1], (castInfo?.recM ? Math.round(castInfo.recM) + " м" : ""));
+    }
+  }
+  body += `<circle cx="${C}" cy="${C}" r="4" fill="#1d3d4d"/><circle cx="${C}" cy="${C}" r="8" fill="none" stroke="#1d3d4d" stroke-width="1.4" opacity=".5"/>`;
+
+  const bar = 100 * k;
+  body += `<g transform="translate(14,${S - 18})"><line x1="0" y1="0" x2="${bar}" y2="0" stroke="#1d3d4d" stroke-width="2"/>
+    <line x1="0" y1="-3" x2="0" y2="3" stroke="#1d3d4d" stroke-width="2"/><line x1="${bar}" y1="-3" x2="${bar}" y2="3" stroke="#1d3d4d" stroke-width="2"/>
+    <text x="${bar + 6}" y="3.5" font-size="9.5" fill="#1d3d4d" font-family="Inter,sans-serif">100 м</text></g>`;
+  body += `<g transform="translate(${S - 22},22)"><path d="M0,-10 L4,6 L0,2 L-4,6 Z" fill="#1d3d4d"/><text x="0" y="-13" text-anchor="middle" font-size="9" fill="#1d3d4d" font-family="Inter,sans-serif">С</text></g>`;
+
+  return `<svg viewBox="0 0 ${S} ${S}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Рельеф точки, вид сверху">
+    <clipPath id="terClip"><rect width="${S}" height="${S}"/></clipPath><g clip-path="url(#terClip)">${body}</g></svg>`;
+}
+
+const C_ = { sand: "#e9dcb4" };
+function esc(s) { return String(s).replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c])); }
+function closestOnSeg(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], len2 = dx * dx + dy * dy || 1;
+  let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return [a[0] + t * dx, a[1] + t * dy];
+}
+function flowArrowsAlong(ptsM, toPx) {
+  let out = "";
+  const step = Math.max(1, Math.floor(ptsM.length / 3));
+  for (let i = step; i < ptsM.length; i += step) {
+    const a = toPx(ptsM[i - 1]), b = toPx(ptsM[i]);
+    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    out += `<path d="M${b[0].toFixed(1)},${b[1].toFixed(1)} l${(-6 * Math.cos(ang - .5)).toFixed(1)},${(-6 * Math.sin(ang - .5)).toFixed(1)} l${(6 * Math.cos(ang + .5) - 6 * Math.cos(ang - .5)).toFixed(1)},${(6 * Math.sin(ang + .5) - 6 * Math.sin(ang - .5)).toFixed(1)} z" fill="rgba(255,255,255,.7)"/>`;
+  }
+  return out;
+}
+function anglerPin(x, y) {
+  return `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+    <circle cx="0" cy="-11" r="3.6" fill="#1d3d4d"/>
+    <path d="M0,-8 L0,1 M0,-5 L7,-9 M0,1 L-3,8 M0,1 L4,7" stroke="#1d3d4d" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+    <path d="M7,-9 L24,-21" stroke="#6b4f2f" stroke-width="1.8" stroke-linecap="round"/></g>`;
+}
+
+/* ---------- Подбор схем под условия (state.osm, state.castInfo) ---------- */
 function selectSpots(state) {
   const fish = FISHES[state.fishId];
   const scored = [];
@@ -2392,50 +3272,60 @@ function selectSpots(state) {
     if (!tpl.waters.includes(state.water)) continue;
     let s = 1;
     for (const tag of tpl.tags) {
-      if (fish.habitat.includes(tag)) s += 2;          // повадки рыбы
-      if (state.features.includes(tag)) s += 1.6;      // что рыбак видит на месте
+      if (fish.habitat.includes(tag)) s += 2;
+      if (state.features.includes(tag)) s += 1.6;
     }
-    /* лёгкий приоритет глубинных схем для глубинной рыбы */
     if ((fish.depth.deep ?? 0) > 0.8 && tpl.tags.includes("dropoff")) s += 0.8;
     if ((fish.depth.shallow ?? 0) > 0.8 && (tpl.tags.includes("reeds") || tpl.tags.includes("lilies"))) s += 0.8;
     scored.push({ key, tpl, s });
   }
 
   scored.sort((a, b) => b.s - a.s);
-  const picked = scored.slice(0, 3);
-  const dist = castDist(state.tackle, state.water);
+  const dist = state.castInfo?.label || castDistFallback(state.tackle, state.water);
+  const distShort = state.castInfo ? `${state.castInfo.recM} м` : dist;
   const fishName = fish.name.toLowerCase();
 
-  return picked.map(({ key, tpl }, i) => ({
-    key,
-    title: tpl.title,
-    desc: tpl.desc(fishName, dist),
-    meta: tpl.meta(dist),
-    svg: tpl.svg(key + i, dist),
-    profileSvg: tpl.profile ? profileSVG(tpl.profile) : "",
-  }));
+  const cards = [];
+
+  const realSvg = state.osm ? realTerrainSVG(state.osm, state.castInfo) : "";
+  if (realSvg) {
+    const ci = state.castInfo;
+    cards.push({
+      key: "real", real: true,
+      title: "Ваша точка — реальный рельеф (300 м)",
+      desc: `Спутниковая геометрия вашего водоёма из OpenStreetMap. Рыболов поставлен на ближний берег, ✕ — реалистичная точка заброса${ci ? " (" + ci.label + ")" : ""}. ${ci?.note || ""}`,
+      meta: [ci ? `заброс ${ci.label}` : `заброс ${dist}`, state.osm.main ? "берег и урез воды" : "русло реки", state.osm.reeds?.length ? "камыш отмечен" : "по данным OSM"],
+      svg: realSvg, profileSvg: "",
+    });
+  }
+
+  const need = 3 - cards.length;
+  for (const { key, tpl } of scored.slice(0, need)) {
+    cards.push({
+      key, title: tpl.title,
+      desc: tpl.desc(fishName, distShort),
+      meta: tpl.meta(distShort),
+      svg: tpl.svg(key + cards.length, distShort),
+      profileSvg: tpl.profile ? profileSVG(tpl.profile) : "",
+    });
+  }
+  return cards;
 }
 
 /* ===== app.js ===== */
 /* ============================================================
    КлёвГид — логика приложения: мастер шагов, карта, рендер.
    Архитектура описана в ai/docs/02-architecture.md
-   ============================================================ */
-
-
-
-
-
-
-
+   ============================================================ */
 const $ = (s, r = document) => r.querySelector(s);
-const $ = (s, r = document) => [...r.querySelectorAll(s)];
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const STORE_KEY = "klevgid.v1";
 
 /* ---------- Состояние ---------- */
 const state = {
   lat: null, lon: null, placeName: null,
-  water: null, features: [], depth: "mid",
+  water: null, autoWater: null, features: [], autoFeatures: [], depth: "mid",
+  detect: null, surr: null, waterProfile: null, aiAnalysis: null, castInfo: null,
   weather: null, waterTemp: null,
   fishId: null, tackle: null, baitsOwned: [],
 };
@@ -2443,6 +3333,7 @@ let step = 0;          // 0 — хиро
 let maxStep = 1;       // максимально открытый шаг
 let map = null, marker = null;
 let condLoaded = false;
+let analyzeToken = 0;  // защита от гонок при быстрой смене точки
 
 /* ============================================================
    Навигация по шагам
@@ -2450,11 +3341,11 @@ let condLoaded = false;
 function goTo(n) {
   step = n;
   maxStep = Math.max(maxStep, n);
-  $(".step-section").forEach(sec => { sec.hidden = +sec.dataset.step !== n; });
+  $$(".step-section").forEach(sec => { sec.hidden = +sec.dataset.step !== n; });
   $("#hero").style.display = n === 0 ? "" : "none";
   if (n === 0) $("#hero").scrollIntoView();
 
-  $(".snav").forEach(b => {
+  $$(".snav").forEach(b => {
     const i = +b.dataset.goto;
     b.classList.toggle("active", i === n);
     b.classList.toggle("done", i < n);
@@ -2472,11 +3363,11 @@ function goTo(n) {
   if (n === 4) renderFishGrid();
 }
 
-$(".snav").forEach(b => b.addEventListener("click", () => {
+$$(".snav").forEach(b => b.addEventListener("click", () => {
   const n = +b.dataset.goto;
   if (n <= maxStep) goTo(n);
 }));
-$("[data-back]").forEach(b => b.addEventListener("click", () => goTo(+b.dataset.back)));
+$$("[data-back]").forEach(b => b.addEventListener("click", () => goTo(+b.dataset.back)));
 $("#startBtn").addEventListener("click", () => goTo(1));
 
 /* ============================================================
@@ -2517,14 +3408,101 @@ async function setPoint(lat, lon, { silent = false } = {}) {
   }
 
   $("#placeCard").hidden = false;
-  $("#placeName").textContent = "Определяю место…";
+  $("#placeName").textContent = "Проверяю, водоём ли это…";
   $("#placeCoords").textContent = `${state.lat}, ${state.lon}`;
-  $("#toStep2").disabled = false;
+  $("#toStep2").disabled = true;
   localStorage.setItem(STORE_KEY, JSON.stringify({ lat: state.lat, lon: state.lon }));
+  validateAndAnalyze();
+}
 
-  const name = await reverseGeocode(state.lat, state.lon);
-  state.placeName = name || `Точка ${state.lat}, ${state.lon}`;
-  $("#placeName").textContent = name || "Место без названия (координаты сохранены)";
+/* ---------- Проверка «это вода?» + AI-разбор водоёма ---------- */
+async function validateAndAnalyze() {
+  const token = ++analyzeToken;
+  const report = $("#waterReport");
+  report.hidden = false;
+  report.innerHTML = `<div class="loader"><span></span><span></span><span></span> Определяю водоём по карте…</div>`;
+
+  reverseGeocode(state.lat, state.lon).then(n => {
+    if (token === analyzeToken && n) { state.placeName = n; if (state.detect) $("#placeName").textContent = state.detect.name || n; }
+  });
+
+  let detect;
+  try { detect = await detectWater(state.lat, state.lon); }
+  catch (e) { if (token === analyzeToken) waterUnknown(report, false); return; }
+  if (token !== analyzeToken) return;
+
+  if (!detect.isWater) {
+    state.detect = state.surr = state.waterProfile = state.aiAnalysis = null;
+    state.water = state.autoWater = null;
+    $("#toStep2").disabled = true;
+    $("#placeName").textContent = "Это не похоже на водоём";
+    report.innerHTML = `<div class="water-bad card">
+      <b>🚫 По карте здесь нет воды.</b>
+      <span>Поставьте точку прямо на реке, озере, пруду или водохранилище. Если водоём маленький и не отмечен — приблизьте карту и кликните точнее по воде, либо <button class="linklike" id="forceWater">продолжить вручную</button>.</span>
+    </div>`;
+    $("#forceWater")?.addEventListener("click", () => waterUnknown(report, true));
+    return;
+  }
+
+  state.detect = detect;
+  state.water = state.autoWater = detect.type;
+  $("#toStep2").disabled = false;
+  $("#placeName").textContent = detect.name || state.placeName || WATERS[detect.type].name;
+
+  report.innerHTML = `<div class="loader"><span></span><span></span><span></span> Анализирую рельеф 300 м и видовой состав…</div>`;
+  let surr = null, profile;
+  try { surr = await fetchSurroundings(state.lat, state.lon, 300); profile = profileWater(detect, surr, state.lat); }
+  catch (e) { profile = profileWater(detect, null, state.lat); }
+  if (token !== analyzeToken) return;
+  profile.lat = state.lat;
+  state.surr = surr; state.waterProfile = profile;
+  state.autoFeatures = deriveFeatures(profile);
+
+  const ai = await analyzeWater({ profile, month: new Date().getMonth(), waterTemp: null, weather: { lat: state.lat } });
+  if (token !== analyzeToken) return;
+  state.aiAnalysis = ai;
+  renderWaterReport(ai);
+}
+
+function waterUnknown(report, forced) {
+  state.detect = state.surr = state.waterProfile = state.aiAnalysis = null;
+  state.water = state.autoWater = forced ? state.water : null;
+  $("#toStep2").disabled = false;
+  report.hidden = false;
+  report.innerHTML = `<div class="water-warn card">
+    <b>${forced ? "Продолжаем вручную." : "Не удалось проверить водоём — нет связи с картографическим сервисом."}</b>
+    <span>Тип водоёма выберите на следующем шаге сами. Остальной расчёт (погода, вода, клёв, схемы) работает как обычно.</span></div>`;
+}
+
+/* Признаки места из профиля OSM → ключи FEATURES */
+function deriveFeatures(profile) {
+  const f = [];
+  if (profile?.reeds) f.push("reeds");
+  if (profile?.bridge) f.push("bridge");
+  if (profile?.beach) f.push("flat");
+  return f;
+}
+
+function renderWaterReport(ai) {
+  const report = $("#waterReport");
+  const dq = ai.dataQuality === "osm"
+    ? `<span class="dq dq-osm">данные карты OSM</span>`
+    : `<span class="dq dq-inf">оценка по аналогии</span>`;
+  const prov = `<span class="dq dq-ai">${ai.provider === "claude" ? "AI · Claude" : "авто-аналитик"}</span>`;
+  const chips = ai.species.slice(0, 6).map(s => {
+    const c = Math.round(s.confidence * 100);
+    const cls = c >= 55 ? "good" : c >= 30 ? "warn" : "bad";
+    return `<span class="sp-chip">${s.name}<i class="dot ${cls}"></i>${c}%</span>`;
+  }).join("");
+  const ev = ai.waterEvidence.map(e => `<li>${e}</li>`).join("");
+  report.innerHTML = `
+    <div class="card water-card">
+      <div class="wc-head"><h4>🔬 Разбор водоёма</h4><div class="dq-row">${dq}${prov}</div></div>
+      <p class="wc-sum">${ai.summary}</p>
+      <div class="sp-chips" title="вероятность обитания вида здесь">${chips}</div>
+      <details class="wc-ev"><summary>Что учтено в анализе (${ai.waterEvidence.length})</summary>
+        <ul>${ev}</ul>${ai.notes.map(n => `<p class="wc-note">• ${n}</p>`).join("")}</details>
+    </div>`;
 }
 
 $("#geoBtn").addEventListener("click", () => {
@@ -2558,24 +3536,36 @@ function renderWaterStep() {
   for (const [key, w] of Object.entries(WATERS)) {
     const b = document.createElement("button");
     b.className = "tile reveal in";
-    b.innerHTML = `${waterIconSVG(w.icon)}<b>${w.name}</b><span>${w.desc}</span>`;
+    const auto = key === state.autoWater;
+    b.innerHTML = `${waterIconSVG(w.icon)}<b>${w.name}${auto ? ' <span class="auto-tag">по карте</span>' : ""}</b><span>${w.desc}</span>`;
+    if (key === state.water) b.classList.add("selected");
     b.addEventListener("click", () => {
       state.water = key; condLoaded = false;
-      $(".tile", tiles).forEach(t => t.classList.toggle("selected", t === b));
+      $$(".tile", tiles).forEach(t => t.classList.toggle("selected", t === b));
       $("#toStep3").disabled = false;
     });
     tiles.appendChild(b);
   }
+  $("#toStep3").disabled = !state.water;
+  $("#waterAutoNote")?.remove();
+  if (state.autoWater) {
+    const note = document.createElement("p");
+    note.id = "waterAutoNote"; note.className = "subnote auto-note";
+    note.innerHTML = `✓ Тип определён по карте как «${WATERS[state.autoWater].name.toLowerCase()}». Если ошиблись — выберите другой.`;
+    tiles.after(note);
+  }
 
+  state.features = [...new Set([...(state.autoFeatures || [])])];
   const chips = $("#featureChips");
   chips.innerHTML = "";
   for (const [key, f] of Object.entries(FEATURES)) {
     const c = document.createElement("button");
-    c.className = "chip";
-    c.innerHTML = `<span class="em">${f.em}</span>${f.name}`;
+    const on = state.features.includes(key);
+    c.className = "chip" + (on ? " selected" : "");
+    c.innerHTML = `<span class="em">${f.em}</span>${f.name}${on ? ' <span class="auto-tag">по карте</span>' : ""}`;
     c.addEventListener("click", () => {
       c.classList.toggle("selected");
-      state.features = $(".chip.selected", chips).map(x => x.dataset.key);
+      state.features = $$(".chip.selected", chips).map(x => x.dataset.key);
     });
     c.dataset.key = key;
     chips.appendChild(c);
@@ -2589,7 +3579,7 @@ function renderWaterStep() {
     b.classList.toggle("selected", key === state.depth);
     b.addEventListener("click", () => {
       state.depth = key;
-      $("button", seg).forEach(x => x.classList.toggle("selected", x === b));
+      $$("button", seg).forEach(x => x.classList.toggle("selected", x === b));
     });
     seg.appendChild(b);
   }
@@ -2706,7 +3696,7 @@ function renderConditions(manual = false) {
     $("#pressureChart").innerHTML = pressureChartSVG(w.hours, w.nowIdx);
     $("#tempChart").innerHTML = tempChartSVG(waterTempSeries(w.hours, w.nowIdx, state.water));
     $("#condExtra").hidden = false;
-    $("#condExtra .reveal").forEach(el => el.classList.add("in"));
+    $$("#condExtra .reveal").forEach(el => el.classList.add("in"));
   } else {
     $("#condExtra").hidden = true;
   }
@@ -2736,27 +3726,44 @@ function renderFishGrid() {
   const ctx = fishCtx();
   const grid = $("#fishGrid");
   grid.innerHTML = "";
-  const list = Object.entries(FISHES)
-    .map(([id, f]) => ({ id, f, a: fishActivityNow(id, ctx) }))
-    .filter(x => x.a)
-    .sort((a, b) => b.a.score - a.a.score);
 
-  $("#fishIntro").textContent =
-    `В водоёме типа «${WATERS[state.water].name.toLowerCase()}» в вашем регионе реально ловятся ${list.length} видов. Отсортированы по активности прямо сейчас.`;
+  let list, aiMode = false;
+  if (state.aiAnalysis?.species?.length) {
+    aiMode = true;
+    list = state.aiAnalysis.species.map(s => ({
+      id: s.id, f: FISHES[s.id], ai: s, a: fishActivityNow(s.id, ctx) || { score: 0, why: "" },
+    }));
+  } else {
+    list = Object.entries(FISHES)
+      .map(([id, f]) => ({ id, f, ai: null, a: fishActivityNow(id, ctx) }))
+      .filter(x => x.a).sort((a, b) => b.a.score - a.a.score);
+  }
 
-  list.forEach(({ id, f, a }, i) => {
+  renderAiPanel(aiMode);
+
+  $("#fishIntro").textContent = aiMode
+    ? `AI-аналитик разобрал ваш водоём и оценил ${list.length} вероятных видов. Процент — шанс, что вид здесь водится; бейдж — активность прямо сейчас.`
+    : `В водоёме «${WATERS[state.water].name.toLowerCase()}» в вашем регионе реально ловятся ${list.length} видов. Отсортированы по активности прямо сейчас.`;
+
+  list.forEach(({ id, f, a, ai }, i) => {
     const lab = activityLabel(a.score);
     const card = document.createElement("button");
     card.className = "fish-card";
-    card.style.animationDelay = (i * 55) + "ms";
+    card.style.animationDelay = (i * 50) + "ms";
+    const conf = ai ? Math.round(ai.confidence * 100) : null;
+    const confCls = conf == null ? "" : conf >= 55 ? "good" : conf >= 30 ? "warn" : "bad";
+    const why = ai ? ai.rationale : (a.why[0].toUpperCase() + a.why.slice(1) + ".");
     card.innerHTML = `
       <div class="fish-art">${fishSVG(f.shape, f.hue)}</div>
       <b>${f.name}</b><span class="latin">${f.latin}</span>
-      <span class="act-badge ${lab.cls}">${lab.label}</span>
-      <div class="fish-why">${a.why[0].toUpperCase() + a.why.slice(1)}.</div>`;
+      <div class="fish-badges">
+        ${conf != null ? `<span class="conf-badge ${confCls}" title="вероятность обитания здесь">${conf}% здесь</span>` : ""}
+        <span class="act-badge ${lab.cls}">${lab.label}</span>
+      </div>
+      <div class="fish-why">${why}</div>`;
     card.addEventListener("click", () => {
       state.fishId = id;
-      $(".fish-card", grid).forEach(x => x.classList.toggle("selected", x === card));
+      $$(".fish-card", grid).forEach(x => x.classList.toggle("selected", x === card));
       $("#toStep5").disabled = false;
     });
     grid.appendChild(card);
@@ -2765,11 +3772,27 @@ function renderFishGrid() {
   if (state.fishId && !list.some(x => x.id === state.fishId)) { state.fishId = null; $("#toStep5").disabled = true; }
 }
 
+function renderAiPanel(aiMode) {
+  const panel = $("#aiPanel");
+  if (!panel) return;
+  if (!aiMode || !state.aiAnalysis) { panel.innerHTML = ""; panel.classList.remove("in"); return; }
+  const ai = state.aiAnalysis;
+  const dq = ai.dataQuality === "osm"
+    ? `<span class="dq dq-osm">по карте OSM</span>` : `<span class="dq dq-inf">по аналогии</span>`;
+  const prov = `<span class="dq dq-ai">${ai.provider === "claude" ? "AI · Claude" : "авто-аналитик"}</span>`;
+  panel.innerHTML = `
+    <div class="card ai-card">
+      <div class="wc-head"><h4>🔬 Что говорит анализ водоёма</h4><div class="dq-row">${dq}${prov}</div></div>
+      <p class="wc-sum">${ai.summary}</p>
+    </div>`;
+  panel.classList.add("in");
+}
+
 $("#autoFish").addEventListener("click", () => {
   const best = adviseFish(state, Object.keys(FISHES));
   if (!best) return;
   state.fishId = best;
-  $("#fishGrid .fish-card").forEach(c => {
+  $$("#fishGrid .fish-card").forEach(c => {
     const isIt = c.querySelector("b").textContent === FISHES[best].name;
     c.classList.toggle("selected", isIt);
     if (isIt) c.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2794,7 +3817,7 @@ function renderTackleStep() {
       <span class="cond-tag ${fitTxt[0]}" style="margin-top:8px">${fitTxt[1]}</span>`;
     b.addEventListener("click", () => {
       state.tackle = key;
-      $(".tile", tiles).forEach(x => x.classList.toggle("selected", x === b));
+      $$(".tile", tiles).forEach(x => x.classList.toggle("selected", x === b));
       renderBaitChips();
       $("#toResult").disabled = false;
     });
@@ -2813,7 +3836,7 @@ function renderBaitChips() {
     c.innerHTML = `<span class="em">${b.em}</span>${b.name}`;
     c.addEventListener("click", () => {
       c.classList.toggle("selected");
-      state.baitsOwned = $(".chip.selected", chips).map(x => x.dataset.key);
+      state.baitsOwned = $$(".chip.selected", chips).map(x => x.dataset.key);
     });
     c.dataset.key = key;
     chips.appendChild(c);
@@ -2853,7 +3876,7 @@ function renderResult() {
     </div>`;
   }).join("");
   requestAnimationFrame(() => setTimeout(() =>
-    $(".fbar-fill", fb).forEach((el, i) => setTimeout(() => el.style.width = el.dataset.w + "%", i * 90)), 80));
+    $$(".fbar-fill", fb).forEach((el, i) => setTimeout(() => el.style.width = el.dataset.w + "%", i * 90)), 80));
 
   /* Почасовой график */
   $("#hourlyChart").innerHTML = hourlyChartSVG(bite.hourly);
@@ -2881,12 +3904,20 @@ function renderResult() {
       <div><b>${t.title}</b><p>${t.text}</p></div>
     </div>`).join("");
 
-  /* Схемы точек */
-  $("#spotsGrid").innerHTML = selectSpots(state).map(s => `
-    <div class="card spot-card">
+  /* Схемы точек — с реальным рельефом OSM и реалистичной дистанцией */
+  state.castInfo = state.waterProfile ? realisticCastDistance(state.tackle, state.waterProfile) : null;
+  const spots = selectSpots({ ...state, osm: state.surr });
+  const noteEl = $("#spotsNote");
+  if (noteEl) {
+    noteEl.textContent = state.surr
+      ? `Первая схема — реальный рельеф вашей точки по карте (радиус 300 м). ✕ — реалистичная точка заброса для вашей снасти${state.castInfo ? ": " + state.castInfo.label : ""}.`
+      : `Типовые рабочие точки для вашего водоёма и рыбы. ✕ — куда забрасывать${state.castInfo ? " (" + state.castInfo.label + ")" : ""}.`;
+  }
+  $("#spotsGrid").innerHTML = spots.map(s => `
+    <div class="card spot-card${s.real ? " spot-real" : ""}">
       <div class="spot-svg-wrap">${s.svg}</div>
       <div class="spot-body">
-        <b>${s.title}</b>
+        <b>${s.real ? "📍 " : ""}${s.title}</b>
         <p>${s.desc}</p>
         <div class="spot-meta">${s.meta.map(m => `<span>${m}</span>`).join("")}</div>
         ${s.profileSvg}
@@ -2910,13 +3941,14 @@ function renderResult() {
 
 $("#printBtn").addEventListener("click", () => window.print());
 $("#restartBtn").addEventListener("click", () => {
-  state.water = null; state.features = []; state.fishId = null;
-  state.tackle = null; state.baitsOwned = []; condLoaded = false;
-  maxStep = 1;
+  // точка и её AI-разбор сохраняются; сбрасываем только выбор рыбака
+  state.water = state.autoWater; state.features = [...(state.autoFeatures || [])];
+  state.fishId = null; state.tackle = null; state.baitsOwned = [];
+  state.castInfo = null; condLoaded = false;
+  maxStep = state.water ? 2 : 1;
   renderWaterStep();
-  $("#toStep3").disabled = true; $("#toStep4").disabled = true;
-  $("#toStep5").disabled = true; $("#toResult").disabled = true;
-  goTo(1);
+  $("#toStep4").disabled = true; $("#toStep5").disabled = true; $("#toResult").disabled = true;
+  goTo(state.water ? 2 : 1);
 });
 
 /* ============================================================
@@ -2930,7 +3962,7 @@ const io = new IntersectionObserver(entries => {
     io.unobserve(e.target);
   });
 }, { threshold: 0.15 });
-$(".reveal, [data-count]").forEach(el => io.observe(el));
+$$(".reveal, [data-count]").forEach(el => io.observe(el));
 
 /* ============================================================
    Старт

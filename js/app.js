@@ -11,6 +11,8 @@ import { fishActivityNow, activityLabel, computeBite, buildTactics, buildSummary
 import { gaugeSVG, hourlyChartSVG, pressureChartSVG, tempChartSVG,
          windCompassSVG, moonSVG, fishSVG, waterIconSVG, animateCount } from "./charts.js";
 import { selectSpots } from "./spotmaps.js";
+import { detectWater, fetchSurroundings, profileWater, realisticCastDistance, SIZE_NAMES, fmtHa } from "./osm.js";
+import { analyzeWater } from "./ai-analyst.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -19,7 +21,8 @@ const STORE_KEY = "klevgid.v1";
 /* ---------- Состояние ---------- */
 const state = {
   lat: null, lon: null, placeName: null,
-  water: null, features: [], depth: "mid",
+  water: null, autoWater: null, features: [], autoFeatures: [], depth: "mid",
+  detect: null, surr: null, waterProfile: null, aiAnalysis: null, castInfo: null,
   weather: null, waterTemp: null,
   fishId: null, tackle: null, baitsOwned: [],
 };
@@ -27,6 +30,7 @@ let step = 0;          // 0 — хиро
 let maxStep = 1;       // максимально открытый шаг
 let map = null, marker = null;
 let condLoaded = false;
+let analyzeToken = 0;  // защита от гонок при быстрой смене точки
 
 /* ============================================================
    Навигация по шагам
@@ -101,14 +105,101 @@ async function setPoint(lat, lon, { silent = false } = {}) {
   }
 
   $("#placeCard").hidden = false;
-  $("#placeName").textContent = "Определяю место…";
+  $("#placeName").textContent = "Проверяю, водоём ли это…";
   $("#placeCoords").textContent = `${state.lat}, ${state.lon}`;
-  $("#toStep2").disabled = false;
+  $("#toStep2").disabled = true;
   localStorage.setItem(STORE_KEY, JSON.stringify({ lat: state.lat, lon: state.lon }));
+  validateAndAnalyze();
+}
 
-  const name = await reverseGeocode(state.lat, state.lon);
-  state.placeName = name || `Точка ${state.lat}, ${state.lon}`;
-  $("#placeName").textContent = name || "Место без названия (координаты сохранены)";
+/* ---------- Проверка «это вода?» + AI-разбор водоёма ---------- */
+async function validateAndAnalyze() {
+  const token = ++analyzeToken;
+  const report = $("#waterReport");
+  report.hidden = false;
+  report.innerHTML = `<div class="loader"><span></span><span></span><span></span> Определяю водоём по карте…</div>`;
+
+  reverseGeocode(state.lat, state.lon).then(n => {
+    if (token === analyzeToken && n) { state.placeName = n; if (state.detect) $("#placeName").textContent = state.detect.name || n; }
+  });
+
+  let detect;
+  try { detect = await detectWater(state.lat, state.lon); }
+  catch (e) { if (token === analyzeToken) waterUnknown(report, false); return; }
+  if (token !== analyzeToken) return;
+
+  if (!detect.isWater) {
+    state.detect = state.surr = state.waterProfile = state.aiAnalysis = null;
+    state.water = state.autoWater = null;
+    $("#toStep2").disabled = true;
+    $("#placeName").textContent = "Это не похоже на водоём";
+    report.innerHTML = `<div class="water-bad card">
+      <b>🚫 По карте здесь нет воды.</b>
+      <span>Поставьте точку прямо на реке, озере, пруду или водохранилище. Если водоём маленький и не отмечен — приблизьте карту и кликните точнее по воде, либо <button class="linklike" id="forceWater">продолжить вручную</button>.</span>
+    </div>`;
+    $("#forceWater")?.addEventListener("click", () => waterUnknown(report, true));
+    return;
+  }
+
+  state.detect = detect;
+  state.water = state.autoWater = detect.type;
+  $("#toStep2").disabled = false;
+  $("#placeName").textContent = detect.name || state.placeName || WATERS[detect.type].name;
+
+  report.innerHTML = `<div class="loader"><span></span><span></span><span></span> Анализирую рельеф 300 м и видовой состав…</div>`;
+  let surr = null, profile;
+  try { surr = await fetchSurroundings(state.lat, state.lon, 300); profile = profileWater(detect, surr, state.lat); }
+  catch (e) { profile = profileWater(detect, null, state.lat); }
+  if (token !== analyzeToken) return;
+  profile.lat = state.lat;
+  state.surr = surr; state.waterProfile = profile;
+  state.autoFeatures = deriveFeatures(profile);
+
+  const ai = await analyzeWater({ profile, month: new Date().getMonth(), waterTemp: null, weather: { lat: state.lat } });
+  if (token !== analyzeToken) return;
+  state.aiAnalysis = ai;
+  renderWaterReport(ai);
+}
+
+function waterUnknown(report, forced) {
+  state.detect = state.surr = state.waterProfile = state.aiAnalysis = null;
+  state.water = state.autoWater = forced ? state.water : null;
+  $("#toStep2").disabled = false;
+  report.hidden = false;
+  report.innerHTML = `<div class="water-warn card">
+    <b>${forced ? "Продолжаем вручную." : "Не удалось проверить водоём — нет связи с картографическим сервисом."}</b>
+    <span>Тип водоёма выберите на следующем шаге сами. Остальной расчёт (погода, вода, клёв, схемы) работает как обычно.</span></div>`;
+}
+
+/* Признаки места из профиля OSM → ключи FEATURES */
+function deriveFeatures(profile) {
+  const f = [];
+  if (profile?.reeds) f.push("reeds");
+  if (profile?.bridge) f.push("bridge");
+  if (profile?.beach) f.push("flat");
+  return f;
+}
+
+function renderWaterReport(ai) {
+  const report = $("#waterReport");
+  const dq = ai.dataQuality === "osm"
+    ? `<span class="dq dq-osm">данные карты OSM</span>`
+    : `<span class="dq dq-inf">оценка по аналогии</span>`;
+  const prov = `<span class="dq dq-ai">${ai.provider === "claude" ? "AI · Claude" : "авто-аналитик"}</span>`;
+  const chips = ai.species.slice(0, 6).map(s => {
+    const c = Math.round(s.confidence * 100);
+    const cls = c >= 55 ? "good" : c >= 30 ? "warn" : "bad";
+    return `<span class="sp-chip">${s.name}<i class="dot ${cls}"></i>${c}%</span>`;
+  }).join("");
+  const ev = ai.waterEvidence.map(e => `<li>${e}</li>`).join("");
+  report.innerHTML = `
+    <div class="card water-card">
+      <div class="wc-head"><h4>🔬 Разбор водоёма</h4><div class="dq-row">${dq}${prov}</div></div>
+      <p class="wc-sum">${ai.summary}</p>
+      <div class="sp-chips" title="вероятность обитания вида здесь">${chips}</div>
+      <details class="wc-ev"><summary>Что учтено в анализе (${ai.waterEvidence.length})</summary>
+        <ul>${ev}</ul>${ai.notes.map(n => `<p class="wc-note">• ${n}</p>`).join("")}</details>
+    </div>`;
 }
 
 $("#geoBtn").addEventListener("click", () => {
@@ -142,7 +233,9 @@ function renderWaterStep() {
   for (const [key, w] of Object.entries(WATERS)) {
     const b = document.createElement("button");
     b.className = "tile reveal in";
-    b.innerHTML = `${waterIconSVG(w.icon)}<b>${w.name}</b><span>${w.desc}</span>`;
+    const auto = key === state.autoWater;
+    b.innerHTML = `${waterIconSVG(w.icon)}<b>${w.name}${auto ? ' <span class="auto-tag">по карте</span>' : ""}</b><span>${w.desc}</span>`;
+    if (key === state.water) b.classList.add("selected");
     b.addEventListener("click", () => {
       state.water = key; condLoaded = false;
       $$(".tile", tiles).forEach(t => t.classList.toggle("selected", t === b));
@@ -150,13 +243,23 @@ function renderWaterStep() {
     });
     tiles.appendChild(b);
   }
+  $("#toStep3").disabled = !state.water;
+  $("#waterAutoNote")?.remove();
+  if (state.autoWater) {
+    const note = document.createElement("p");
+    note.id = "waterAutoNote"; note.className = "subnote auto-note";
+    note.innerHTML = `✓ Тип определён по карте как «${WATERS[state.autoWater].name.toLowerCase()}». Если ошиблись — выберите другой.`;
+    tiles.after(note);
+  }
 
+  state.features = [...new Set([...(state.autoFeatures || [])])];
   const chips = $("#featureChips");
   chips.innerHTML = "";
   for (const [key, f] of Object.entries(FEATURES)) {
     const c = document.createElement("button");
-    c.className = "chip";
-    c.innerHTML = `<span class="em">${f.em}</span>${f.name}`;
+    const on = state.features.includes(key);
+    c.className = "chip" + (on ? " selected" : "");
+    c.innerHTML = `<span class="em">${f.em}</span>${f.name}${on ? ' <span class="auto-tag">по карте</span>' : ""}`;
     c.addEventListener("click", () => {
       c.classList.toggle("selected");
       state.features = $$(".chip.selected", chips).map(x => x.dataset.key);
@@ -320,24 +423,41 @@ function renderFishGrid() {
   const ctx = fishCtx();
   const grid = $("#fishGrid");
   grid.innerHTML = "";
-  const list = Object.entries(FISHES)
-    .map(([id, f]) => ({ id, f, a: fishActivityNow(id, ctx) }))
-    .filter(x => x.a)
-    .sort((a, b) => b.a.score - a.a.score);
 
-  $("#fishIntro").textContent =
-    `В водоёме типа «${WATERS[state.water].name.toLowerCase()}» в вашем регионе реально ловятся ${list.length} видов. Отсортированы по активности прямо сейчас.`;
+  let list, aiMode = false;
+  if (state.aiAnalysis?.species?.length) {
+    aiMode = true;
+    list = state.aiAnalysis.species.map(s => ({
+      id: s.id, f: FISHES[s.id], ai: s, a: fishActivityNow(s.id, ctx) || { score: 0, why: "" },
+    }));
+  } else {
+    list = Object.entries(FISHES)
+      .map(([id, f]) => ({ id, f, ai: null, a: fishActivityNow(id, ctx) }))
+      .filter(x => x.a).sort((a, b) => b.a.score - a.a.score);
+  }
 
-  list.forEach(({ id, f, a }, i) => {
+  renderAiPanel(aiMode);
+
+  $("#fishIntro").textContent = aiMode
+    ? `AI-аналитик разобрал ваш водоём и оценил ${list.length} вероятных видов. Процент — шанс, что вид здесь водится; бейдж — активность прямо сейчас.`
+    : `В водоёме «${WATERS[state.water].name.toLowerCase()}» в вашем регионе реально ловятся ${list.length} видов. Отсортированы по активности прямо сейчас.`;
+
+  list.forEach(({ id, f, a, ai }, i) => {
     const lab = activityLabel(a.score);
     const card = document.createElement("button");
     card.className = "fish-card";
-    card.style.animationDelay = (i * 55) + "ms";
+    card.style.animationDelay = (i * 50) + "ms";
+    const conf = ai ? Math.round(ai.confidence * 100) : null;
+    const confCls = conf == null ? "" : conf >= 55 ? "good" : conf >= 30 ? "warn" : "bad";
+    const why = ai ? ai.rationale : (a.why[0].toUpperCase() + a.why.slice(1) + ".");
     card.innerHTML = `
       <div class="fish-art">${fishSVG(f.shape, f.hue)}</div>
       <b>${f.name}</b><span class="latin">${f.latin}</span>
-      <span class="act-badge ${lab.cls}">${lab.label}</span>
-      <div class="fish-why">${a.why[0].toUpperCase() + a.why.slice(1)}.</div>`;
+      <div class="fish-badges">
+        ${conf != null ? `<span class="conf-badge ${confCls}" title="вероятность обитания здесь">${conf}% здесь</span>` : ""}
+        <span class="act-badge ${lab.cls}">${lab.label}</span>
+      </div>
+      <div class="fish-why">${why}</div>`;
     card.addEventListener("click", () => {
       state.fishId = id;
       $$(".fish-card", grid).forEach(x => x.classList.toggle("selected", x === card));
@@ -347,6 +467,22 @@ function renderFishGrid() {
   });
 
   if (state.fishId && !list.some(x => x.id === state.fishId)) { state.fishId = null; $("#toStep5").disabled = true; }
+}
+
+function renderAiPanel(aiMode) {
+  const panel = $("#aiPanel");
+  if (!panel) return;
+  if (!aiMode || !state.aiAnalysis) { panel.innerHTML = ""; panel.classList.remove("in"); return; }
+  const ai = state.aiAnalysis;
+  const dq = ai.dataQuality === "osm"
+    ? `<span class="dq dq-osm">по карте OSM</span>` : `<span class="dq dq-inf">по аналогии</span>`;
+  const prov = `<span class="dq dq-ai">${ai.provider === "claude" ? "AI · Claude" : "авто-аналитик"}</span>`;
+  panel.innerHTML = `
+    <div class="card ai-card">
+      <div class="wc-head"><h4>🔬 Что говорит анализ водоёма</h4><div class="dq-row">${dq}${prov}</div></div>
+      <p class="wc-sum">${ai.summary}</p>
+    </div>`;
+  panel.classList.add("in");
 }
 
 $("#autoFish").addEventListener("click", () => {
@@ -465,12 +601,20 @@ function renderResult() {
       <div><b>${t.title}</b><p>${t.text}</p></div>
     </div>`).join("");
 
-  /* Схемы точек */
-  $("#spotsGrid").innerHTML = selectSpots(state).map(s => `
-    <div class="card spot-card">
+  /* Схемы точек — с реальным рельефом OSM и реалистичной дистанцией */
+  state.castInfo = state.waterProfile ? realisticCastDistance(state.tackle, state.waterProfile) : null;
+  const spots = selectSpots({ ...state, osm: state.surr });
+  const noteEl = $("#spotsNote");
+  if (noteEl) {
+    noteEl.textContent = state.surr
+      ? `Первая схема — реальный рельеф вашей точки по карте (радиус 300 м). ✕ — реалистичная точка заброса для вашей снасти${state.castInfo ? ": " + state.castInfo.label : ""}.`
+      : `Типовые рабочие точки для вашего водоёма и рыбы. ✕ — куда забрасывать${state.castInfo ? " (" + state.castInfo.label + ")" : ""}.`;
+  }
+  $("#spotsGrid").innerHTML = spots.map(s => `
+    <div class="card spot-card${s.real ? " spot-real" : ""}">
       <div class="spot-svg-wrap">${s.svg}</div>
       <div class="spot-body">
-        <b>${s.title}</b>
+        <b>${s.real ? "📍 " : ""}${s.title}</b>
         <p>${s.desc}</p>
         <div class="spot-meta">${s.meta.map(m => `<span>${m}</span>`).join("")}</div>
         ${s.profileSvg}
@@ -494,13 +638,14 @@ function renderResult() {
 
 $("#printBtn").addEventListener("click", () => window.print());
 $("#restartBtn").addEventListener("click", () => {
-  state.water = null; state.features = []; state.fishId = null;
-  state.tackle = null; state.baitsOwned = []; condLoaded = false;
-  maxStep = 1;
+  // точка и её AI-разбор сохраняются; сбрасываем только выбор рыбака
+  state.water = state.autoWater; state.features = [...(state.autoFeatures || [])];
+  state.fishId = null; state.tackle = null; state.baitsOwned = [];
+  state.castInfo = null; condLoaded = false;
+  maxStep = state.water ? 2 : 1;
   renderWaterStep();
-  $("#toStep3").disabled = true; $("#toStep4").disabled = true;
-  $("#toStep5").disabled = true; $("#toResult").disabled = true;
-  goTo(1);
+  $("#toStep4").disabled = true; $("#toStep5").disabled = true; $("#toResult").disabled = true;
+  goTo(state.water ? 2 : 1);
 });
 
 /* ============================================================

@@ -391,8 +391,8 @@ const TEMPLATES = {
   },
 };
 
-/* ---------- Дистанция заброса по снасти ---------- */
-function castDist(tackle, water) {
+/* ---------- Дистанция заброса по снасти (фолбэк-строка) ---------- */
+function castDistFallback(tackle, water) {
   const far = water === "river_big" || water === "reservoir" || water === "canal";
   switch (tackle) {
     case "feeder": return far ? "40–60 м" : "25–40 м";
@@ -402,7 +402,98 @@ function castDist(tackle, water) {
   }
 }
 
-/* ---------- Подбор 3 схем под условия ---------- */
+/* ============================================================
+   РЕАЛЬНЫЙ РЕЛЬЕФ ТОЧКИ (вид сверху, радиус из OSM)
+   ============================================================ */
+export function realTerrainSVG(surr, castInfo) {
+  if (!surr || (!surr.main && !(surr.waterways && surr.waterways.length))) return "";
+  const S = 420, R = surr.radius || 300, k = S / (2 * R), C = S / 2;
+  const proj = surr.proj;
+  const toPx = (m) => [C + m[0] * k, C + m[1] * k];
+  const geomM = (geom) => geom.map(g => proj.toXY(g.lat, g.lon));
+  const pathOf = (geom, close) => {
+    let pts = geomM(geom);
+    if (pts.length > 220) pts = pts.filter((_, i) => i % Math.ceil(pts.length / 220) === 0);
+    return pts.map((m, i) => (i ? "L" : "M") + toPx(m).map(v => v.toFixed(1)).join(",")).join(" ") + (close ? " Z" : "");
+  };
+
+  let body = `<rect width="${S}" height="${S}" fill="#cdd8c2"/>`;
+
+  for (const r of surr.reeds) body += `<path d="${pathOf(r.geom, true)}" fill="#9fb06a" opacity=".55"/>`;
+  for (const b of surr.beaches) body += `<path d="${pathOf(b.geom, true)}" fill="${C_.sand}" opacity=".8"/>`;
+
+  for (const w of surr.waters) {
+    const main = w === surr.main;
+    body += `<path d="${pathOf(w.geom, true)}" fill="${main ? "#73aec6" : "#9cc3d4"}" stroke="#3f7e98" stroke-width="1.2" opacity="${main ? 1 : .9}"/>`;
+  }
+  for (const ww of surr.waterways) {
+    body += `<path d="${pathOf(ww.geom, false)}" fill="none" stroke="#5aa0bd" stroke-width="3.2" stroke-linecap="round"/>`;
+    body += flowArrowsAlong(geomM(ww.geom), toPx);
+    if (ww.tags?.name) {
+      const mid = toPx(geomM(ww.geom)[Math.floor(ww.geom.length / 2)]);
+      body += `<text x="${mid[0] + 4}" y="${mid[1] - 4}" font-size="9" fill="#2c6175" font-style="italic" font-family="Lora,serif">${esc(ww.tags.name)}</text>`;
+    }
+  }
+  for (const br of surr.bridges) body += `<path d="${pathOf(br.geom, false)}" fill="none" stroke="#b3a98f" stroke-width="5" stroke-linecap="round"/>`;
+
+  if (surr.main) {
+    const pts = geomM(surr.main.geom);
+    let bestM = null, bd = Infinity;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const cp = closestOnSeg([0, 0], pts[i], pts[i + 1]);
+      const d = Math.hypot(cp[0], cp[1]);
+      if (d < bd) { bd = d; bestM = cp; }
+    }
+    if (bestM && bd > 0.5) {
+      const rec = (castInfo?.recM) || 20;
+      const dCast = Math.min(rec, bd * 0.9);
+      const u = [bestM[0] / bd, bestM[1] / bd];
+      const anglerM = [bestM[0] + u[0] * 7, bestM[1] + u[1] * 7];
+      const castM = [bestM[0] - u[0] * dCast, bestM[1] - u[1] * dCast];
+      const aPx = toPx(anglerM), cPx = toPx(castM), sPx = toPx(bestM);
+      body += `<path d="M${aPx[0].toFixed(1)},${aPx[1].toFixed(1)} Q${sPx[0].toFixed(1)},${(sPx[1] - 14).toFixed(1)} ${cPx[0].toFixed(1)},${cPx[1].toFixed(1)}" fill="none" stroke="rgba(232,85,61,.6)" stroke-width="1.8" stroke-dasharray="5 5"/>`;
+      body += anglerPin(aPx[0], aPx[1]);
+      body += castPoint(cPx[0], cPx[1], (castInfo?.recM ? Math.round(castInfo.recM) + " м" : ""));
+    }
+  }
+  body += `<circle cx="${C}" cy="${C}" r="4" fill="#1d3d4d"/><circle cx="${C}" cy="${C}" r="8" fill="none" stroke="#1d3d4d" stroke-width="1.4" opacity=".5"/>`;
+
+  const bar = 100 * k;
+  body += `<g transform="translate(14,${S - 18})"><line x1="0" y1="0" x2="${bar}" y2="0" stroke="#1d3d4d" stroke-width="2"/>
+    <line x1="0" y1="-3" x2="0" y2="3" stroke="#1d3d4d" stroke-width="2"/><line x1="${bar}" y1="-3" x2="${bar}" y2="3" stroke="#1d3d4d" stroke-width="2"/>
+    <text x="${bar + 6}" y="3.5" font-size="9.5" fill="#1d3d4d" font-family="Inter,sans-serif">100 м</text></g>`;
+  body += `<g transform="translate(${S - 22},22)"><path d="M0,-10 L4,6 L0,2 L-4,6 Z" fill="#1d3d4d"/><text x="0" y="-13" text-anchor="middle" font-size="9" fill="#1d3d4d" font-family="Inter,sans-serif">С</text></g>`;
+
+  return `<svg viewBox="0 0 ${S} ${S}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Рельеф точки, вид сверху">
+    <clipPath id="terClip"><rect width="${S}" height="${S}"/></clipPath><g clip-path="url(#terClip)">${body}</g></svg>`;
+}
+
+const C_ = { sand: "#e9dcb4" };
+function esc(s) { return String(s).replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c])); }
+function closestOnSeg(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], len2 = dx * dx + dy * dy || 1;
+  let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return [a[0] + t * dx, a[1] + t * dy];
+}
+function flowArrowsAlong(ptsM, toPx) {
+  let out = "";
+  const step = Math.max(1, Math.floor(ptsM.length / 3));
+  for (let i = step; i < ptsM.length; i += step) {
+    const a = toPx(ptsM[i - 1]), b = toPx(ptsM[i]);
+    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    out += `<path d="M${b[0].toFixed(1)},${b[1].toFixed(1)} l${(-6 * Math.cos(ang - .5)).toFixed(1)},${(-6 * Math.sin(ang - .5)).toFixed(1)} l${(6 * Math.cos(ang + .5) - 6 * Math.cos(ang - .5)).toFixed(1)},${(6 * Math.sin(ang + .5) - 6 * Math.sin(ang - .5)).toFixed(1)} z" fill="rgba(255,255,255,.7)"/>`;
+  }
+  return out;
+}
+function anglerPin(x, y) {
+  return `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+    <circle cx="0" cy="-11" r="3.6" fill="#1d3d4d"/>
+    <path d="M0,-8 L0,1 M0,-5 L7,-9 M0,1 L-3,8 M0,1 L4,7" stroke="#1d3d4d" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+    <path d="M7,-9 L24,-21" stroke="#6b4f2f" stroke-width="1.8" stroke-linecap="round"/></g>`;
+}
+
+/* ---------- Подбор схем под условия (state.osm, state.castInfo) ---------- */
 export function selectSpots(state) {
   const fish = FISHES[state.fishId];
   const scored = [];
@@ -411,26 +502,42 @@ export function selectSpots(state) {
     if (!tpl.waters.includes(state.water)) continue;
     let s = 1;
     for (const tag of tpl.tags) {
-      if (fish.habitat.includes(tag)) s += 2;          // повадки рыбы
-      if (state.features.includes(tag)) s += 1.6;      // что рыбак видит на месте
+      if (fish.habitat.includes(tag)) s += 2;
+      if (state.features.includes(tag)) s += 1.6;
     }
-    /* лёгкий приоритет глубинных схем для глубинной рыбы */
     if ((fish.depth.deep ?? 0) > 0.8 && tpl.tags.includes("dropoff")) s += 0.8;
     if ((fish.depth.shallow ?? 0) > 0.8 && (tpl.tags.includes("reeds") || tpl.tags.includes("lilies"))) s += 0.8;
     scored.push({ key, tpl, s });
   }
 
   scored.sort((a, b) => b.s - a.s);
-  const picked = scored.slice(0, 3);
-  const dist = castDist(state.tackle, state.water);
+  const dist = state.castInfo?.label || castDistFallback(state.tackle, state.water);
+  const distShort = state.castInfo ? `${state.castInfo.recM} м` : dist;
   const fishName = fish.name.toLowerCase();
 
-  return picked.map(({ key, tpl }, i) => ({
-    key,
-    title: tpl.title,
-    desc: tpl.desc(fishName, dist),
-    meta: tpl.meta(dist),
-    svg: tpl.svg(key + i, dist),
-    profileSvg: tpl.profile ? profileSVG(tpl.profile) : "",
-  }));
+  const cards = [];
+
+  const realSvg = state.osm ? realTerrainSVG(state.osm, state.castInfo) : "";
+  if (realSvg) {
+    const ci = state.castInfo;
+    cards.push({
+      key: "real", real: true,
+      title: "Ваша точка — реальный рельеф (300 м)",
+      desc: `Спутниковая геометрия вашего водоёма из OpenStreetMap. Рыболов поставлен на ближний берег, ✕ — реалистичная точка заброса${ci ? " (" + ci.label + ")" : ""}. ${ci?.note || ""}`,
+      meta: [ci ? `заброс ${ci.label}` : `заброс ${dist}`, state.osm.main ? "берег и урез воды" : "русло реки", state.osm.reeds?.length ? "камыш отмечен" : "по данным OSM"],
+      svg: realSvg, profileSvg: "",
+    });
+  }
+
+  const need = 3 - cards.length;
+  for (const { key, tpl } of scored.slice(0, need)) {
+    cards.push({
+      key, title: tpl.title,
+      desc: tpl.desc(fishName, distShort),
+      meta: tpl.meta(distShort),
+      svg: tpl.svg(key + cards.length, distShort),
+      profileSvg: tpl.profile ? profileSVG(tpl.profile) : "",
+    });
+  }
+  return cards;
 }
