@@ -1,0 +1,19 @@
+# AI-бэкенд КлёвГида. Положить в /etc/systemd/system/, секреты — в EnvironmentFile.
+# Запуск под НЕ-root пользователем: Claude CLI отказывается работать от root.
+[Unit]
+Description=KlevGid AI backend (FastAPI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=fishmania
+Group=fishmania
+WorkingDirectory=/var/www/fishmania/backend
+EnvironmentFile=/etc/klevgid/klevgid.env
+ExecStart=/var/www/fishmania/backend/.venv/bin/uvicorn app.server:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=4
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target
